@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+
+# Build outputs
+/.cache
+/build
+/public/build
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# IDE and editors
+/.idea
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Deploy / hosting
+/functions
+/.netlify
+/.wrangler
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Optional: lock file (uncomment if you want to ignore; project uses yarn)
+# package-lock.json
+.vercel
+.env*.local
