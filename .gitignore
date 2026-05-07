@@ -4,6 +4,7 @@ node_modules
 # Build outputs
 /.cache
 /build
+/dist
 /public/build
 
 # Environment and secrets
