@@ -9,7 +9,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { UserRole } from '../../common/enums.js';
+import { UserRole } from '../../common/enums';
 
 export class RegisterDto {
   @IsEmail()

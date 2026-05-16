@@ -7,4 +7,4 @@ export {
   PostType,
   FollowType,
   NotificationType,
-} from './enums.js';
+} from './enums';

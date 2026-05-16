@@ -3,7 +3,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ConfigType } from '@nestjs/config';
 import { v4 as uuid } from 'uuid';
-import s3Config from '../config/s3.config.js';
+import s3Config from '../config/s3.config';
 
 @Injectable()
 export class UploadService {
@@ -22,7 +22,11 @@ export class UploadService {
     });
   }
 
-  async generatePresignedUrl(dto: { filename: string; content_type: string; folder?: string }) {
+  async generatePresignedUrl(dto: {
+    filename: string;
+    content_type: string;
+    folder?: string;
+  }) {
     const key = `${dto.folder || 'uploads'}/${uuid()}-${dto.filename}`;
 
     const command = new PutObjectCommand({

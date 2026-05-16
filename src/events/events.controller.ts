@@ -1,62 +1,109 @@
-import { Controller, Get, Post, Patch, Param, Query, Body } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { EventsService } from './events.service.js';
-import { CreateEventDto } from './dto/create-event.dto.js';
-import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
-import { Roles } from '../auth/decorators/roles.decorator.js';
-import { UserRole } from '../common/enums.js';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Query,
+  Delete,
+  UseGuards,
+} from '@nestjs/common';
+import { EventsService } from './events.service';
+import { CreateEventDto, UpdateEventDto, CreateTicketTypeDto, UpdateTicketTypeDto } from './dto/create-event.dto';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '../prisma-enums';
 
-@ApiTags('Events')
+@ApiTags('events')
 @ApiBearerAuth()
-@Controller('api/v1/events')
+@Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Post()
-  @Roles(UserRole.KAR_ADMIN, UserRole.EVENTANSVARIG, UserRole.TIKIT_ADMIN)
-  @ApiOperation({ summary: 'Create an event (multi-step form)' })
-  create(
-    @Body() dto: CreateEventDto,
-    @CurrentUser() user: { id: string; school_id: string },
-  ) {
-    return this.eventsService.create(dto, user.id, user.school_id);
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Create a new event with ticket types' })
+  create(@Body() createEventDto: CreateEventDto) {
+    return this.eventsService.create(createEventDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'List events with filters (Allt/Klubb/Sport/Gasque tabs)' })
+  @ApiOperation({ summary: 'List all events' })
   findAll(
-    @Query('category') category?: string,
-    @Query('school_id') school_id?: string,
-    @Query('status') status?: string,
+    @Query('schoolId') schoolId?: string,
+    @Query('isPublished') isPublished?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     return this.eventsService.findAll({
-      category,
-      school_id,
-      status,
+      schoolId,
+      isPublished:
+        isPublished === 'true'
+          ? true
+          : isPublished === 'false'
+            ? false
+            : undefined,
       page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 20,
+      limit: limit ? parseInt(limit) : 10,
     });
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get event detail (event page with ticket types)' })
+  @ApiOperation({ summary: 'Get event details' })
   findOne(@Param('id') id: string) {
     return this.eventsService.findOne(id);
   }
 
-  @Patch(':id/sold-out')
-  @Roles(UserRole.KAR_ADMIN, UserRole.EVENTANSVARIG, UserRole.TIKIT_ADMIN)
-  @ApiOperation({ summary: 'Toggle sold-out status' })
-  toggleSoldOut(@Param('id') id: string, @Body('is_sold_out') isSoldOut: boolean) {
-    return this.eventsService.toggleSoldOut(id, isSoldOut);
+  @Patch(':id')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Update event (publish/cancel)' })
+  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
+    return this.eventsService.update(id, updateEventDto);
   }
 
-  @Get(':id/checkin/stats')
-  @Roles(UserRole.SCANNER, UserRole.KAR_ADMIN, UserRole.TIKIT_ADMIN)
-  @ApiOperation({ summary: 'Get live check-in stats for scanner dashboard' })
-  getCheckinStats(@Param('id') id: string) {
-    return this.eventsService.getCheckinStats(id);
+  @Get(':id/attendees')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @ApiOperation({ summary: 'Get list of attendees for an event' })
+  getAttendees(@Param('id') id: string) {
+    return this.eventsService.getAttendees(id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Delete an event' })
+  async remove(@Param('id') id: string) {
+    await this.eventsService.remove(id);
+    return {
+      message: 'Event deleted successfully',
+      id,
+    };
+  }
+
+  @Post(':id/ticket-types')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Add a ticket type to an event' })
+  createTicketType(
+    @Param('id') id: string,
+    @Body() createTicketTypeDto: CreateTicketTypeDto,
+  ) {
+    return this.eventsService.createTicketType(id, createTicketTypeDto);
+  }
+
+  @Patch(':id/ticket-types/:ticketTypeId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Update a ticket type' })
+  updateTicketType(
+    @Param('ticketTypeId') ticketTypeId: string,
+    @Body() updateTicketTypeDto: UpdateTicketTypeDto,
+  ) {
+    return this.eventsService.updateTicketType(ticketTypeId, updateTicketTypeDto);
+  }
+
+  @Delete(':id/ticket-types/:ticketTypeId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Delete a ticket type' })
+  removeTicketType(@Param('ticketTypeId') ticketTypeId: string) {
+    return this.eventsService.removeTicketType(ticketTypeId);
   }
 }

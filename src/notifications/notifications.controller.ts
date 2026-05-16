@@ -1,23 +1,20 @@
-import { Controller, Get, Patch, Param } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { NotificationsService } from './notifications.service.js';
-import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { Controller, Post, Body } from '@nestjs/common';
+import { NotificationsService } from './notifications.service';
+import { SendNotificationDto } from './dto/notification.dto';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '../prisma-enums';
 
-@ApiTags('Notifications')
+@ApiTags('notifications')
 @ApiBearerAuth()
-@Controller('api/v1/notifications')
+@Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly service: NotificationsService) {}
+  constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Get()
-  @ApiOperation({ summary: 'Get notifications (bell icon)' })
-  getAll(@CurrentUser() user: { id: string }) {
-    return this.service.getAll(user.id);
-  }
-
-  @Patch(':id/read')
-  @ApiOperation({ summary: 'Mark notification as read' })
-  markRead(@Param('id') id: string) {
-    return this.service.markRead(id);
+  @Post('send')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Send targeted notifications' })
+  sendToSegment(@Body() dto: SendNotificationDto) {
+    return this.notificationsService.sendToSegment(dto);
   }
 }

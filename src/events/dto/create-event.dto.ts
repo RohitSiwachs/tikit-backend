@@ -4,112 +4,106 @@ import {
   IsEnum,
   IsDateString,
   IsBoolean,
-  IsUUID,
-  ValidateNested,
   IsArray,
-  IsInt,
-  Min,
+  ValidateNested,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { EventType } from '../../common/enums.js';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { EventType } from '../../prisma-enums';
 
-class CreateTicketTypeDto {
+export class CreateTicketTypeDto {
+  @ApiProperty()
   @IsString()
   name: string;
 
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @IsInt()
-  @Min(0)
+  @ApiProperty()
+  @IsNumber()
   price: number;
 
-  @IsOptional()
-  @IsString()
-  currency?: string;
-
-  @IsInt()
-  @Min(1)
-  total_inventory: number;
-
-  @IsOptional()
-  @IsString()
-  external_link?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  requires_membership?: boolean;
-
-  @IsOptional()
-  @IsUUID()
-  linked_card_id?: string;
-
-  @IsOptional()
-  @IsDateString()
-  sale_starts_at?: string;
-
-  @IsOptional()
-  @IsDateString()
-  sale_ends_at?: string;
-}
-
-class CreateVenueDto {
-  @IsString()
-  name: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
-
-  @IsOptional()
-  latitude?: number;
-
-  @IsOptional()
-  longitude?: number;
+  @ApiProperty()
+  @IsNumber()
+  quantityTotal: number;
 }
 
 export class CreateEventDto {
+  @ApiProperty()
   @IsString()
   title: string;
 
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   description?: string;
 
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  cover_image_url?: string;
+  coverUrl?: string;
 
-  @IsOptional()
+  @ApiProperty({ enum: ['INTERNAL', 'EXTERNAL'] })
   @IsEnum(EventType)
-  event_type?: EventType;
+  eventType: EventType;
 
+  @ApiProperty()
+  @IsString()
+  schoolId: string;
+
+  @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  category?: string;
+  venueName?: string;
 
-  @ValidateNested()
-  @Type(() => CreateVenueDto)
-  venue: CreateVenueDto;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  venueAddress?: string;
 
+  @ApiProperty()
   @IsDateString()
-  starts_at: string;
+  startsAt: string;
 
+  @ApiProperty()
   @IsDateString()
-  ends_at: string;
+  endsAt: string;
 
+  @ApiProperty({ required: false })
   @IsOptional()
-  @IsUUID()
-  linked_card_id?: string;
+  @IsString()
+  externalBuyUrl?: string;
 
-  @IsOptional()
-  @IsBoolean()
-  is_draft?: boolean;
-
-  @IsOptional()
+  @ApiProperty({ type: [CreateTicketTypeDto] })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateTicketTypeDto)
-  ticket_types?: CreateTicketTypeDto[];
+  ticketTypes: CreateTicketTypeDto[];
+}
+
+export class UpdateEventDto extends PartialType(CreateEventDto) {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isCancelled?: boolean;
+}
+
+export class UpdateTicketTypeDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isSoldOut?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  quantityRemaining?: number;
 }

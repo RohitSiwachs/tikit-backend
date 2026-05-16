@@ -1,26 +1,48 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification } from '../entities/notification.entity.js';
+import { PrismaService } from '../prisma/prisma.service';
+import { SendNotificationDto } from './dto/notification.dto';
 
 @Injectable()
 export class NotificationsService {
-  constructor(
-    @InjectRepository(Notification) private readonly repo: Repository<Notification>,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  async getAll(userId: string) {
-    const [data, total] = await this.repo.findAndCount({
-      where: { user_id: userId },
-      order: { created_at: 'DESC' },
-      take: 50,
+  async sendToSegment(dto: SendNotificationDto) {
+    const { segmentFilters } = dto;
+
+    const where: any = {};
+
+    if (segmentFilters.schoolId) {
+      where.schoolId = segmentFilters.schoolId;
+    }
+
+    if (segmentFilters.minAge || segmentFilters.maxAge) {
+      where.age = {};
+      if (segmentFilters.minAge) where.age.gte = segmentFilters.minAge;
+      if (segmentFilters.maxAge) where.age.lte = segmentFilters.maxAge;
+    }
+
+    if (segmentFilters.eventId) {
+      where.tickets = {
+        some: {
+          eventId: segmentFilters.eventId,
+        },
+      };
+    }
+
+    const users = await this.prisma.user.findMany({
+      where,
+      select: { id: true, email: true },
     });
-    const unread_count = await this.repo.count({ where: { user_id: userId, is_read: false } });
-    return { unread_count, data };
-  }
 
-  async markRead(notificationId: string) {
-    await this.repo.update(notificationId, { is_read: true });
-    return { success: true };
+    // In a real app, you would call a push notification service or email service here.
+    console.log(
+      `Sending notification "${dto.title}" to ${users.length} users.`,
+    );
+
+    return {
+      success: true,
+      targetUserCount: users.length,
+      message: 'Notifications queued for delivery',
+    };
   }
 }

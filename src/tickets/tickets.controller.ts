@@ -1,44 +1,39 @@
-import { Controller, Post, Get, Param, Body, Query } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { TicketsService } from './tickets.service.js';
-import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
-import { Roles } from '../auth/decorators/roles.decorator.js';
-import { UserRole } from '../common/enums.js';
+import { Controller, Get, Patch, Param, Query } from '@nestjs/common';
+import { TicketsService } from './tickets.service';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '../prisma-enums';
 
-@ApiTags('Tickets')
+@ApiTags('tickets')
 @ApiBearerAuth()
-@Controller('api/v1/events/:eventId')
+@Controller('tickets')
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
-  @Post('tickets/purchase')
-  @ApiOperation({ summary: 'Purchase a ticket (Checkout flow)' })
-  purchase(
-    @Param('eventId') eventId: string,
-    @Body() body: { ticket_type_id: string; quantity: number; voucher_code?: string },
-    @CurrentUser() user: { id: string },
-  ) {
-    return this.ticketsService.purchase(eventId, body, user.id);
+  @Get()
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'List tickets' })
+  findAll(@Query('eventId') eventId?: string, @Query('userId') userId?: string) {
+    return this.ticketsService.findAll(eventId, userId);
   }
 
-  @Post('checkin')
-  @Roles(UserRole.SCANNER, UserRole.KAR_ADMIN, UserRole.TIKIT_ADMIN)
-  @ApiOperation({ summary: 'Check in via QR scan (Scanner screen)' })
-  checkin(
-    @Param('eventId') eventId: string,
-    @Body('qr_token') qrToken: string,
-    @CurrentUser() user: { id: string },
-  ) {
-    return this.ticketsService.checkin(eventId, qrToken, user.id);
+  @Patch(':id/void')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Void a ticket' })
+  voidTicket(@Param('id') id: string) {
+    return this.ticketsService.voidTicket(id);
   }
 
-  @Get('guests')
-  @Roles(UserRole.SCANNER, UserRole.KAR_ADMIN, UserRole.TIKIT_ADMIN)
-  @ApiOperation({ summary: 'Search guests (Scanner search bar)' })
-  searchGuests(
-    @Param('eventId') eventId: string,
-    @Query('q') query: string,
-  ) {
-    return this.ticketsService.searchGuests(eventId, query);
+  @Patch(':id/check-in')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @ApiOperation({ summary: 'Check-in a ticket' })
+  checkIn(@Param('id') id: string) {
+    return this.ticketsService.checkIn(id);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get ticket details' })
+  findOne(@Param('id') id: string) {
+    return this.ticketsService.findOne(id);
   }
 }

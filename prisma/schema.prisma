@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model School {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  city          String
+  description   String?
+  logoUrl       String?
+  coverUrl      String?
+  websiteUrl    String?
+  schoolCode    String   @unique
+  isVerified    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  contactEmail  String?
+  contactPhone  String?
+  address       String?
+  users         User[]
+  events        Event[]
+  cards         Card[]
+  posts         Post[]
+  classes       Class[]
+  createdAt     DateTime @default(now())
+}
+
+model User {
+  id              String        @id @default(uuid())
+  email           String        @unique
+  displayName     String
+  username        String        @unique
+  password        String
+  phone           String?
+  role            String        @default("STUDENT")
+  accountStatus   String        @default("ACTIVE")
+  schoolId        String?
+  school          School?       @relation(fields: [schoolId], references: [id])
+  className       String?
+  age             Int?
+  avatarUrl       String?
+  isVerified      Boolean       @default(false)
+  approvalStatus  String        @default("pending") // approved, pending, rejected
+  cardStatus      String        @default("inactive") // active, inactive, blocked
+  marketingConsent Boolean      @default(false)
+  tickets         Ticket[]
+  posts           Post[]
+  createdAt       DateTime      @default(now())
+}
+
+model Event {
+  id                  String      @id @default(uuid())
+  title               String
+  description         String?
+  coverUrl            String?
+  eventType           String      @default("INTERNAL")
+  schoolId            String
+  school              School      @relation(fields: [schoolId], references: [id])
+  venueName           String?
+  venueAddress        String?
+  startsAt            DateTime
+  endsAt              DateTime
+  externalBuyUrl      String?
+  isPublished         Boolean     @default(false)
+  isCancelled         Boolean     @default(false)
+  ticketTypes         TicketType[]
+  tickets             Ticket[]
+  posts               Post[]
+  createdAt           DateTime    @default(now())
+}
+
+model TicketType {
+  id                String   @id @default(uuid())
+  eventId           String
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  price             Int
+  quantityTotal     Int
+  quantityRemaining Int
+  isSoldOut         Boolean  @default(false)
+}
+
+model Ticket {
+  id           String       @id @default(uuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  eventId      String
+  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId String
+  code         String       @unique
+  qrToken      String       @unique
+  status       String       @default("ISSUED")
+  checkedInAt  DateTime?
+  createdAt    DateTime     @default(now())
+}
+
+model Card {
+  id                 String   @id @default(uuid())
+  title              String
+  schoolId           String
+  school             School   @relation(fields: [schoolId], references: [id])
+  coverUrl           String?
+  description        String?
+  validFrom          DateTime
+  validUntil         DateTime
+  status             String   @default("draft") // draft, active, blocked
+  codeGenerationType String   @default("individual") // individual, batch
+  createdAt          DateTime @default(now())
+}
+
+model Post {
+  id          String   @id @default(uuid())
+  body        String
+  imageUrl    String?
+  postType    String   @default("text") // text, image, poll, event_card
+  schoolId    String
+  school      School   @relation(fields: [schoolId], references: [id])
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  eventId     String?
+  event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model Class {
+  id             String   @id @default(uuid())
+  schoolId       String
+  school         School   @relation(fields: [schoolId], references: [id])
+  className      String
+  graduationYear Int
+  studentCount   Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
+model Segment {
+  id             String   @id @default(uuid())
+  name           String
+  filters        String   // JSON string storing the filter criteria
+  estimatedCount Int      @default(0)
+  createdAt      DateTime @default(now())
+}
+
+model Campaign {
+  id             String    @id @default(uuid())
+  channel        String    // push, sms, email
+  segmentFilters String    // JSON string storing the filters used for this campaign
+  title          String
+  body           String
+  sendMode       String    // now, later
+  scheduledAt    DateTime?
+  status         String    @default("draft") // draft, scheduled, sent, cancelled
+  createdAt      DateTime  @default(now())
+}

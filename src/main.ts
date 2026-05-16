@@ -2,10 +2,13 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module.js';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // ─── Global Prefix ──────────────────────────────────────
+  app.setGlobalPrefix('v1');
 
   // ─── Global Pipes ──────────────────────────────────────
   app.useGlobalPipes(
@@ -17,9 +20,7 @@ async function bootstrap() {
   );
 
   // ─── Serialization (respects @Exclude() on entities) ───
-  app.useGlobalInterceptors(
-    new ClassSerializerInterceptor(app.get(Reflector)),
-  );
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   // ─── CORS ──────────────────────────────────────────────
   app.enableCors({
@@ -35,13 +36,13 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('v1/docs', app, document);
 
   // ─── Start ─────────────────────────────────────────────
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`🎟️  TiKit API running on http://localhost:${port}`);
-  console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
+  console.log(`🎟️  TiKit API running on http://localhost:${port}/v1`);
+  console.log(`📚 Swagger docs at http://localhost:${port}/v1/docs`);
 }
 
 bootstrap();
