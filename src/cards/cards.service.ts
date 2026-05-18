@@ -21,29 +21,81 @@ export class CardsService {
     const card = await this.prisma.card.findUnique({ where: { id: cardId } });
     if (!card) throw new NotFoundException(`Card with ID ${cardId} not found`);
 
-    const codes: string[] = [];
+    const codesToCreate: { cardId: string; code: string }[] = [];
     for (let i = 0; i < count; i++) {
-      codes.push(crypto.randomBytes(4).toString('hex').toUpperCase());
+      codesToCreate.push({
+        cardId,
+        code: crypto.randomBytes(4).toString('hex').toUpperCase()
+      });
     }
+
+    await this.prisma.cardCode.createMany({
+      data: codesToCreate,
+    });
 
     return {
       cardId,
       cardTitle: card.title,
-      codes,
+      generatedCount: count,
     };
+  }
+
+  async exportCodes(cardId: string) {
+    const codes = await this.prisma.cardCode.findMany({
+      where: { cardId },
+      select: { code: true, isUsed: true, usedAt: true },
+    });
+    return codes;
+  }
+
+  async pauseCard(cardId: string) {
+    return this.prisma.card.update({
+      where: { id: cardId },
+      data: { status: 'paused' },
+    });
+  }
+
+  async blockCard(cardId: string) {
+    return this.prisma.card.update({
+      where: { id: cardId },
+      data: { status: 'blocked' },
+    });
+  }
+
+  async getActivatedStudents(cardId: string) {
+    const activatedCodes = await this.prisma.cardCode.findMany({
+      where: { cardId, isUsed: true },
+      include: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            avatarUrl: true,
+            className: true,
+          }
+        }
+      }
+    });
+
+    return activatedCodes.map(c => ({
+      code: c.code,
+      usedAt: c.usedAt,
+      student: c.user,
+    }));
   }
 
   async findAll(schoolId?: string) {
     return this.prisma.card.findMany({
       where: schoolId ? { schoolId } : {},
-      include: { school: { select: { name: true } } },
+      include: { school: { select: { name: true } }, _count: { select: { codes: true } } },
     });
   }
 
   async findOne(id: string) {
     const card = await this.prisma.card.findUnique({
       where: { id },
-      include: { school: { select: { name: true } } },
+      include: { school: { select: { name: true } }, _count: { select: { codes: true } } },
     });
     if (!card) throw new NotFoundException(`Card with ID ${id} not found`);
     return card;
@@ -57,6 +109,20 @@ export class CardsService {
     return this.prisma.card.update({
       where: { id },
       data,
+    });
+  }
+
+  async duplicateCard(id: string) {
+    const card = await this.prisma.card.findUnique({ where: { id } });
+    if (!card) throw new NotFoundException(`Card with ID ${id} not found`);
+
+    const { id: _id, createdAt, ...cardData } = card;
+    return this.prisma.card.create({
+      data: {
+        ...cardData,
+        title: `${cardData.title} (Copy)`,
+        status: 'draft',
+      },
     });
   }
 

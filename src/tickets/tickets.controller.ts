@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query, Post, Body, Request } from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -9,6 +9,16 @@ import { Role } from '../prisma-enums';
 @Controller('tickets')
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
+
+  @Post('claim')
+  @ApiOperation({ summary: 'Claim a free ticket' })
+  claimFreeTicket(
+    @Request() req: any,
+    @Body('eventId') eventId: string,
+    @Body('ticketTypeId') ticketTypeId: string,
+  ) {
+    return this.ticketsService.claimFreeTicket(req.user.sub, eventId, ticketTypeId);
+  }
 
   @Get()
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)

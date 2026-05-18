@@ -50,4 +50,39 @@ export class CardsController {
   generateCodes(@Param('id') id: string, @Body() dto: GenerateCodesDto) {
     return this.cardsService.generateCodes(id, dto.count);
   }
+
+  @Post(':id/duplicate')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Duplicate a card template as a draft' })
+  duplicateCard(@Param('id') id: string) {
+    return this.cardsService.duplicateCard(id);
+  }
+
+  @Get(':id/export')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Export generated codes for a card' })
+  exportCodes(@Param('id') id: string) {
+    return this.cardsService.exportCodes(id);
+  }
+
+  @Patch(':id/pause')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Pause a card' })
+  pauseCard(@Param('id') id: string) {
+    return this.cardsService.pauseCard(id);
+  }
+
+  @Patch(':id/block')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Block a card' })
+  blockCard(@Param('id') id: string) {
+    return this.cardsService.blockCard(id);
+  }
+
+  @Get(':id/students')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'View students who activated the card' })
+  getActivatedStudents(@Param('id') id: string) {
+    return this.cardsService.getActivatedStudents(id);
+  }
 }

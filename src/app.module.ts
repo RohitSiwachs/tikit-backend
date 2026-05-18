@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_GUARD } from '@nestjs/core';
 import { databaseConfig, jwtConfig, s3Config } from './config/index';
 import { AuthModule } from './auth/auth.module';
@@ -19,6 +20,8 @@ import { PostsModule } from './posts/posts.module';
 import { ClassesModule } from './classes/classes.module';
 import { SegmentsModule } from './segments/segments.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
+import { ScannerModule } from './scanner/scanner.module';
+import { WalletModule } from './wallet/wallet.module';
 
 @Module({
   imports: [
@@ -28,6 +31,9 @@ import { CampaignsModule } from './campaigns/campaigns.module';
       load: [databaseConfig, jwtConfig, s3Config],
       envFilePath: '.env',
     }),
+
+    // ─── Scheduler (cron jobs) ─────────────────────────────
+    ScheduleModule.forRoot(),
 
     // ─── Feature Modules ───────────────────────────────────
     AuthModule,
@@ -43,6 +49,8 @@ import { CampaignsModule } from './campaigns/campaigns.module';
     ClassesModule,
     SegmentsModule,
     CampaignsModule,
+    ScannerModule,
+    WalletModule,
   ],
   providers: [
     // Global JWT guard — all routes require auth unless marked @Public()

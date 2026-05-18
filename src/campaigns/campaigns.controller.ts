@@ -45,4 +45,18 @@ export class CampaignsController {
   remove(@Param('id') id: string) {
     return this.campaignsService.remove(id);
   }
+
+  @Post(':id/send')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Trigger a manual send of a campaign' })
+  triggerSend(@Param('id') id: string) {
+    return this.campaignsService.triggerSend(id);
+  }
+
+  @Get(':id/report')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get campaign analytics report' })
+  getReport(@Param('id') id: string) {
+    return this.campaignsService.getReport(id);
+  }
 }
