@@ -29,6 +29,11 @@ export class CreateTicketTypeDto {
   @ApiProperty()
   @IsNumber()
   quantityTotal: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  fewLeftThreshold?: number;
 }
 
 export class CreateEventDto {
@@ -76,6 +81,32 @@ export class CreateEventDto {
   @IsOptional()
   @IsString()
   externalBuyUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  ageLimit?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  externalTicketStatus?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  isPinned?: boolean;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  connectedSchools?: string[];
 
   @ApiProperty({ type: [CreateTicketTypeDto] })
   @IsArray()

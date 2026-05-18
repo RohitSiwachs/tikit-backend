@@ -10,16 +10,34 @@ export class UsersService {
     role?: Role;
     schoolId?: string;
     approvalStatus?: string;
+    className?: string;
+    year?: number;
     page?: number;
     limit?: number;
   }) {
-    const { role, schoolId, approvalStatus, page = 1, limit = 10 } = query;
+    const { role, schoolId, approvalStatus, className, year, page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
     if (role) where.role = role;
     if (schoolId) where.schoolId = schoolId;
     if (approvalStatus) where.approvalStatus = approvalStatus;
+    if (className) where.className = className;
+    
+    // To filter by year, we need to find classes for that year first
+    if (year && schoolId) {
+      const classesForYear = await this.prisma.class.findMany({
+        where: { schoolId, graduationYear: year },
+        select: { className: true }
+      });
+      const classNames = classesForYear.map(c => c.className);
+      
+      if (className && !classNames.includes(className)) {
+        where.className = 'NON_EXISTENT_CLASS_TRIGGER_EMPTY';
+      } else if (!className) {
+        where.className = { in: classNames };
+      }
+    }
 
     const [total, data] = await Promise.all([
       this.prisma.user.count({ where }),
@@ -88,6 +106,221 @@ export class UsersService {
 
     return this.prisma.user.delete({
       where: { id },
+    });
+  }
+
+  async getProfile(username: string, requestingUserId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        displayName: true,
+        username: true,
+        avatarUrl: true,
+        school: { select: { id: true, name: true } },
+        className: true,
+        biography: true,
+        achievements: true,
+        socialLinks: true,
+        isVisibleToOtherSchools: true,
+        isPrivateAccount: true,
+        _count: {
+          select: {
+            followers: true,
+            friends: true,
+            tickets: true,
+          },
+        },
+        followers: {
+          where: { id: requestingUserId }
+        },
+        tickets: {
+          where: {
+            event: {
+              startsAt: { gte: new Date() }, // optional: only upcoming events
+            }
+          },
+          include: {
+            event: true,
+          },
+          take: 10,
+        },
+      },
+    });
+
+    if (!user) throw new NotFoundException(`User profile for ${username} not found`);
+
+    const requestingUser = await this.prisma.user.findUnique({ where: { id: requestingUserId } });
+    
+    // Privacy Rules Evaluation
+    let isDetailedViewAllowed = true;
+
+    // 1. If it's a private account, only followers (or the user themselves) can see details.
+    if (user.isPrivateAccount && user.id !== requestingUserId) {
+      if (user.followers.length === 0) {
+        isDetailedViewAllowed = false;
+      }
+    }
+
+    // 2. Users from other schools may only see limited information
+    if (requestingUser && requestingUser.schoolId !== user.school?.id && user.id !== requestingUserId) {
+      if (!user.isVisibleToOtherSchools) {
+        isDetailedViewAllowed = false;
+      }
+    }
+
+    const { tickets, _count, followers, ...rest } = user;
+    
+    if (!isDetailedViewAllowed) {
+      return {
+        id: user.id,
+        displayName: user.displayName,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        school: user.school,
+        isPrivateAccount: user.isPrivateAccount,
+        counts: {
+          followers: _count.followers,
+          friends: _count.friends,
+          events: _count.tickets,
+        },
+        isFollowing: followers.length > 0,
+        message: 'This account is private or restricts detailed view from other schools.',
+      };
+    }
+
+    return {
+      ...rest,
+      counts: {
+        followers: _count.followers,
+        friends: _count.friends,
+        events: _count.tickets,
+      },
+      attendingEvents: tickets.map(t => t.event),
+      isFollowing: followers.length > 0,
+    };
+  }
+
+  async requestFollow(senderId: string, receiverId: string) {
+    if (senderId === receiverId) throw new Error('Cannot follow yourself');
+
+    const receiver = await this.prisma.user.findUnique({ where: { id: receiverId } });
+    if (!receiver) throw new NotFoundException('User not found');
+
+    if (!receiver.isPrivateAccount) {
+      // Auto-approve if not private
+      await this.prisma.user.update({
+        where: { id: receiverId },
+        data: {
+          followers: {
+            connect: { id: senderId }
+          }
+        }
+      });
+      return { message: 'Followed successfully', status: 'approved' };
+    }
+
+    // Create follow request for private account
+    const existingReq = await this.prisma.followRequest.findFirst({
+      where: { senderId, receiverId, status: 'pending' }
+    });
+
+    if (existingReq) throw new Error('Follow request already pending');
+
+    await this.prisma.followRequest.create({
+      data: { senderId, receiverId }
+    });
+
+    return { message: 'Follow request sent', status: 'pending' };
+  }
+
+  async respondToFollowRequest(userId: string, requestId: string, status: string) {
+    const request = await this.prisma.followRequest.findUnique({ where: { id: requestId } });
+    if (!request || request.receiverId !== userId) {
+      throw new NotFoundException('Follow request not found or unauthorized');
+    }
+
+    if (status === 'approved') {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          followers: {
+            connect: { id: request.senderId }
+          }
+        }
+      });
+    }
+
+    return this.prisma.followRequest.update({
+      where: { id: requestId },
+      data: { status }
+    });
+  }
+
+
+
+  async assignCards(cardId: string, userIds: string[]) {
+    const codesToCreate = userIds.map(userId => ({
+      cardId,
+      userId,
+      code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      isUsed: false,
+    }));
+
+    await this.prisma.cardCode.createMany({
+      data: codesToCreate,
+      skipDuplicates: true,
+    });
+
+    return { message: `Assigned card ${cardId} to ${userIds.length} students.` };
+  }
+
+  async getEngagementData(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tickets: {
+          include: { event: { select: { title: true, startsAt: true } } }
+        },
+        cardCodes: {
+          include: { card: { select: { title: true } } }
+        }
+      }
+    });
+
+    if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
+
+    const eventsAttended = user.tickets.filter(t => t.status === 'CHECKED_IN').length;
+    const cardsActivated = user.cardCodes.filter(c => c.isUsed).length;
+
+    return {
+      userId: user.id,
+      displayName: user.displayName,
+      metrics: {
+        totalTickets: user.tickets.length,
+        eventsAttended,
+        attendanceRate: user.tickets.length > 0 ? (eventsAttended / user.tickets.length) * 100 : 0,
+        totalCards: user.cardCodes.length,
+        cardsActivated,
+      },
+      tickets: user.tickets,
+      cards: user.cardCodes,
+    };
+  }
+
+  async updateNotificationSettings(
+    userId: string,
+    settings: { notifPush?: boolean; notifEmail?: boolean; notifSms?: boolean },
+  ) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: settings,
+      select: {
+        id: true,
+        notifPush: true,
+        notifEmail: true,
+        notifSms: true,
+      },
     });
   }
 }

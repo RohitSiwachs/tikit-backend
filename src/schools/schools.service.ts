@@ -96,4 +96,66 @@ export class SchoolsService {
       where: { id },
     });
   }
+
+  async uploadStudents(schoolId: string, students: { email: string, displayName: string, className?: string }[]) {
+    const usersToCreate = students.map((s, index) => ({
+      username: s.email.split('@')[0] + Math.random().toString(36).substring(2, 6),
+      email: s.email,
+      displayName: s.displayName,
+      className: s.className,
+      schoolId,
+      password: 'defaultPassword123', // In a real app, generate a secure random one or send invite link
+      approvalStatus: 'pending',
+      role: 'STUDENT',
+    }));
+
+    await this.prisma.user.createMany({
+      data: usersToCreate,
+      skipDuplicates: true,
+    });
+
+    return { message: `${students.length} students uploaded successfully.` };
+  }
+
+  async uploadClasses(schoolId: string, classes: { className: string; graduationYear?: number }[]) {
+    const classesToCreate = classes.map(c => ({
+      className: c.className,
+      graduationYear: c.graduationYear || new Date().getFullYear() + 3,
+      schoolId,
+    }));
+
+    await this.prisma.class.createMany({
+      data: classesToCreate,
+      skipDuplicates: true,
+    });
+
+    return { message: `${classes.length} classes uploaded successfully.` };
+  }
+
+  async assignCards(schoolId: string, cardId: string, classNames: string[]) {
+    const students = await this.prisma.user.findMany({
+      where: {
+        schoolId,
+        className: { in: classNames },
+      }
+    });
+
+    if (students.length === 0) {
+      return { message: 'No students found in the selected classes.' };
+    }
+
+    const codesToCreate = students.map(student => ({
+      cardId,
+      userId: student.id,
+      code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      isUsed: false,
+    }));
+
+    await this.prisma.cardCode.createMany({
+      data: codesToCreate,
+      skipDuplicates: true, // In case of duplicate codes randomly generated
+    });
+
+    return { message: `Assigned card ${cardId} to ${students.length} students in classes: ${classNames.join(', ')}` };
+  }
 }

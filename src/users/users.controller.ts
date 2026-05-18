@@ -1,12 +1,14 @@
 import {
   Controller,
   Get,
+  Post,
   Body,
   Patch,
   Param,
   Delete,
   Query,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import {
@@ -30,6 +32,8 @@ export class UsersController {
     @Query('role') role?: string,
     @Query('schoolId') schoolId?: string,
     @Query('approvalStatus') approvalStatus?: string,
+    @Query('className') className?: string,
+    @Query('year') year?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -37,9 +41,25 @@ export class UsersController {
       role: role as Role,
       schoolId,
       approvalStatus,
+      className,
+      year: year ? parseInt(year) : undefined,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
     });
+  }
+
+  @Post('assign-cards')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Assign a card to multiple specific students' })
+  assignCards(@Body() body: { cardId: string, userIds: string[] }) {
+    return this.usersService.assignCards(body.cardId, body.userIds);
+  }
+
+  @Get(':id/engagement')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'View activation and engagement data for a student' })
+  getEngagement(@Param('id') id: string) {
+    return this.usersService.getEngagementData(id);
   }
 
   @Patch(':id/role')
@@ -68,6 +88,47 @@ export class UsersController {
   @ApiOperation({ summary: 'Activate or deactivate user account' })
   updateStatus(@Param('id') id: string, @Body('status') status: string) {
     return this.usersService.updateStatus(id, status);
+  }
+
+  @Get('profile/:username')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Get user profile by username' })
+  getProfile(
+    @Param('username') username: string,
+    @Request() req: any,
+  ) {
+    return this.usersService.getProfile(username, req.user.id);
+  }
+
+  @Post(':id/follow')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Send a follow request' })
+  followUser(
+    @Param('id') targetUserId: string,
+    @Request() req: any,
+  ) {
+    return this.usersService.requestFollow(req.user.id, targetUserId);
+  }
+
+  @Patch('follow-requests/:requestId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Respond to a follow request' })
+  respondToFollowRequest(
+    @Param('requestId') requestId: string,
+    @Body('status') status: string,
+    @Request() req: any,
+  ) {
+    return this.usersService.respondToFollowRequest(req.user.id, requestId, status);
+  }
+
+  @Patch('notification-settings')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Update notification preferences for the logged-in user' })
+  updateNotificationSettings(
+    @Request() req: any,
+    @Body() body: { notifPush?: boolean; notifEmail?: boolean; notifSms?: boolean },
+  ) {
+    return this.usersService.updateNotificationSettings(req.user.id, body);
   }
 
   @Delete(':id')

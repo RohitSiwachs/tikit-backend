@@ -24,9 +24,11 @@ model School {
   address       String?
   users         User[]
   events        Event[]
+  connectedEvents Event[] @relation("EventConnectedSchools")
   cards         Card[]
   posts         Post[]
   classes       Class[]
+  connectionRequests EventConnectionRequest[]
   createdAt     DateTime @default(now())
 }
 
@@ -45,11 +47,39 @@ model User {
   age             Int?
   avatarUrl       String?
   isVerified      Boolean       @default(false)
+  otpCode         String?
+  otpExpiresAt    DateTime?
   approvalStatus  String        @default("pending") // approved, pending, rejected
   cardStatus      String        @default("inactive") // active, inactive, blocked
   marketingConsent Boolean      @default(false)
+  
+  // Profile Additions
+  biography       String?
+  achievements    String[]
+  socialLinks     Json?
+  isVisibleToOtherSchools Boolean @default(false)
+  isPrivateAccount        Boolean @default(false)
+  expoPushToken   String?
+
+  // Notification Preferences
+  notifPush       Boolean @default(true)
+  notifEmail      Boolean @default(true)
+  notifSms        Boolean @default(false)
+
+  // Social Relations
+  followers       User[] @relation("UserFollows")
+  following       User[] @relation("UserFollows")
+  friends         User[] @relation("UserFriends")
+  friendOf        User[] @relation("UserFriends")
+  
+  sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
+  receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
+
   tickets         Ticket[]
   posts           Post[]
+  cardCodes       CardCode[]
+  eventLikes      EventLike[]
+  eventComments   EventComment[]
   createdAt       DateTime      @default(now())
 }
 
@@ -65,12 +95,20 @@ model Event {
   venueAddress        String?
   startsAt            DateTime
   endsAt              DateTime
+  ageLimit            Int?
   externalBuyUrl      String?
+  externalTicketStatus String?    @default("IN_STOCK") // IN_STOCK, FEW_LEFT, SOLD_OUT
+  status              String      @default("draft") // draft, published, cancelled
+  isPinned            Boolean     @default(false)
   isPublished         Boolean     @default(false)
   isCancelled         Boolean     @default(false)
+  connectedSchools    School[]    @relation("EventConnectedSchools")
   ticketTypes         TicketType[]
   tickets             Ticket[]
   posts               Post[]
+  likes               EventLike[]
+  comments            EventComment[]
+  connectionRequests  EventConnectionRequest[]
   createdAt           DateTime    @default(now())
 }
 
@@ -83,6 +121,7 @@ model TicketType {
   price             Int
   quantityTotal     Int
   quantityRemaining Int
+  fewLeftThreshold  Int?     @default(10)
   isSoldOut         Boolean  @default(false)
 }
 
@@ -107,10 +146,12 @@ model Card {
   school             School   @relation(fields: [schoolId], references: [id])
   coverUrl           String?
   description        String?
+  benefits           String[]
   validFrom          DateTime
   validUntil         DateTime
-  status             String   @default("draft") // draft, active, blocked
+  status             String   @default("draft") // draft, active, blocked, paused
   codeGenerationType String   @default("individual") // individual, batch
+  codes              CardCode[]
   createdAt          DateTime @default(now())
 }
 
@@ -126,6 +167,18 @@ model Post {
   eventId     String?
   event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
+}
+
+model CardCode {
+  id        String   @id @default(uuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  code      String   @unique
+  isUsed    Boolean  @default(false)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
 }
 
 model Class {
@@ -155,5 +208,48 @@ model Campaign {
   sendMode       String    // now, later
   scheduledAt    DateTime?
   status         String    @default("draft") // draft, scheduled, sent, cancelled
+  sentCount      Int       @default(0)
+  openCount      Int       @default(0)
   createdAt      DateTime  @default(now())
+}
+
+model EventConnectionRequest {
+  id                 String   @id @default(uuid())
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  requestingSchoolId String
+  requestingSchool   School   @relation(fields: [requestingSchoolId], references: [id], onDelete: Cascade)
+  status             String   @default("pending") // pending, approved, rejected
+  createdAt          DateTime @default(now())
+}
+
+model FollowRequest {
+  id          String   @id @default(uuid())
+  senderId    String
+  sender      User     @relation("SentFollowRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User     @relation("ReceivedFollowRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // pending, approved, rejected
+  createdAt   DateTime @default(now())
+}
+
+model EventLike {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+}
+
+model EventComment {
+  id        String   @id @default(uuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
 }

@@ -39,3 +39,20 @@ export class RegisterDto {
   @IsString()
   phone?: string;
 }
+
+export class SendOtpDto {
+  @ApiProperty()
+  @IsString()
+  userId: string;
+}
+
+export class VerifyOtpDto {
+  @ApiProperty()
+  @IsString()
+  userId: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(6)
+  otpCode: string;
+}

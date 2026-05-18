@@ -20,6 +20,11 @@ export class CreateCardDto {
   @IsString()
   description?: string;
 
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsString({ each: true })
+  benefits?: string[];
+
   @ApiProperty()
   @IsDateString()
   validFrom: string;
