@@ -1,12 +1,18 @@
 import { Controller, Get } from '@nestjs/common';
-import { AppService } from './app.service';
+import { Public } from './auth/decorators/public.decorator';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-@Controller()
+@ApiTags('health')
+@Controller('health')
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
+  @Public()
   @Get()
-  getHello(): string {
-    return this.appService.getHello();
+  @ApiOperation({ summary: 'Health check endpoint to keep Render awake' })
+  checkHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      message: 'TiKit Backend is up and running!',
+    };
   }
 }
