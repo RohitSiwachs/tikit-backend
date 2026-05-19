@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding Admin User...');
 
-  // 1. Create a School
+  // 1. Create a default School for admin
   const school = await prisma.school.upsert({
     where: { slug: 'tikit-academy' },
     update: {},
@@ -21,15 +21,22 @@ async function main() {
 
   console.log(`✅ School created: ${school.name} (Code: ${school.schoolCode})`);
 
-  // 2. Create a Super Admin
-  const hashedPassword = await bcrypt.hash('adminpassword', 10);
+  // 2. Create / update the Super Admin with new credentials
+  const hashedPassword = await bcrypt.hash('admin@123', 10);
+
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@tikit.com' },
-    update: {},
+    where: { email: 'admin@gmail.com' },
+    update: {
+      password: hashedPassword,
+      role: 'TIKIT_ADMIN',
+      accountStatus: 'ACTIVE',
+      isVerified: true,
+      approvalStatus: 'approved',
+    },
     create: {
-      email: 'admin@tikit.com',
+      email: 'admin@gmail.com',
       displayName: 'Super Admin',
-      username: 'admin',
+      username: 'tikit_admin',
       password: hashedPassword,
       role: 'TIKIT_ADMIN',
       accountStatus: 'ACTIVE',
@@ -39,10 +46,10 @@ async function main() {
     },
   });
 
-  console.log(`✅ Admin User created: ${admin.email}`);
-  console.log('\n🚀 You can now login with:');
-  console.log('Email: admin@tikit.com');
-  console.log('Password: adminpassword');
+  console.log(`✅ Admin User ready: ${admin.email}`);
+  console.log('\n🚀 Login credentials:');
+  console.log('   Email    : admin@gmail.com');
+  console.log('   Password : admin@123');
 }
 
 main()
