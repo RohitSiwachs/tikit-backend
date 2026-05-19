@@ -22,6 +22,7 @@ import { SegmentsModule } from './segments/segments.module';
 import { CampaignsModule } from './campaigns/campaigns.module';
 import { ScannerModule } from './scanner/scanner.module';
 import { WalletModule } from './wallet/wallet.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { WalletModule } from './wallet/wallet.module';
     ScannerModule,
     WalletModule,
   ],
+  controllers: [AppController],
   providers: [
     // Global JWT guard — all routes require auth unless marked @Public()
     { provide: APP_GUARD, useClass: JwtAuthGuard },
