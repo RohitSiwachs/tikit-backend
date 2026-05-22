@@ -1,6 +1,6 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { LoginDto, RegisterDto, SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { LoginDto, RegisterDto, SendOtpDto, VerifyOtpDto, VerifySchoolDto } from './dto/auth.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Public } from './decorators/public.decorator';
 
@@ -14,6 +14,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Login and get JWT token' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('verify-school')
+  @ApiOperation({ summary: 'Verify school code and retrieve details' })
+  verifySchool(@Body() dto: VerifySchoolDto) {
+    return this.authService.verifySchool(dto);
   }
 
   @Public()

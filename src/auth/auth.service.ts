@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { LoginDto, RegisterDto, SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { LoginDto, RegisterDto, SendOtpDto, VerifyOtpDto, VerifySchoolDto } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -87,11 +87,39 @@ export class AuthService {
     return user;
   }
 
+  async verifySchool(dto: VerifySchoolDto) {
+    const school = await this.prisma.school.findUnique({
+      where: { schoolCode: dto.schoolCode },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        logoUrl: true,
+        coverUrl: true,
+        schoolCode: true,
+      },
+    });
+
+    if (!school) {
+      throw new BadRequestException('Invalid school code');
+    }
+
+    return school;
+  }
+
   async sendOtp(dto: SendOtpDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+    let user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
     if (!user) {
       throw new BadRequestException('User not found');
     }
+
+    if (dto.phone) {
+      user = await this.prisma.user.update({
+        where: { id: dto.userId },
+        data: { phone: dto.phone },
+      });
+    }
+
     if (user.isVerified) {
       throw new BadRequestException('User already verified');
     }

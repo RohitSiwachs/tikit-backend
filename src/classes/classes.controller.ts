@@ -19,7 +19,7 @@ export class ClassesController {
   }
 
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'List classes, optionally by school' })
   findAll(@Query('schoolId') schoolId?: string) {
     return this.classesService.findAll(schoolId);

@@ -34,6 +34,26 @@ export class CreateTicketTypeDto {
   @IsOptional()
   @IsNumber()
   fewLeftThreshold?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  coverUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  priceDisplay?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  deepLink?: string;
 }
 
 export class CreateEventDto {
@@ -101,6 +121,32 @@ export class CreateEventDto {
   @IsOptional()
   @IsBoolean()
   isPinned?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  sortOrder?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  showImGoingButton?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  attendanceVisibility?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  externalPriceDisplay?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  linkedCardIds?: string[];
 
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()

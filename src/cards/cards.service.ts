@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardDto, UpdateCardDto } from './dto/card.dto';
 import * as crypto from 'crypto';
@@ -130,5 +130,54 @@ export class CardsService {
     return this.prisma.card.delete({
       where: { id },
     });
+  }
+
+  async claimCard(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
+
+    const cardCode = await this.prisma.cardCode.findUnique({
+      where: { code },
+      include: { card: true },
+    });
+
+    if (!cardCode) {
+      throw new BadRequestException('Invalid card code');
+    }
+
+    if (cardCode.isUsed) {
+      throw new BadRequestException('This card code has already been used');
+    }
+
+    if (cardCode.userId && cardCode.userId !== userId) {
+      throw new BadRequestException('This card code is assigned to another user');
+    }
+
+    if (user.schoolId && cardCode.card.schoolId !== user.schoolId) {
+      throw new BadRequestException('This card does not belong to your school');
+    }
+
+    const updatedCardCode = await this.prisma.cardCode.update({
+      where: { id: cardCode.id },
+      data: {
+        isUsed: true,
+        userId: userId,
+        usedAt: new Date(),
+      },
+      include: { card: true },
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { cardStatus: 'active' },
+    });
+
+    return {
+      message: 'Card claimed successfully',
+      cardCode: updatedCardCode.code,
+      cardTitle: updatedCardCode.card.title,
+      validFrom: updatedCardCode.card.validFrom,
+      validUntil: updatedCardCode.card.validUntil,
+    };
   }
 }

@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../prisma-enums';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 
 @Injectable()
 export class UsersService {
@@ -310,17 +312,74 @@ export class UsersService {
 
   async updateNotificationSettings(
     userId: string,
-    settings: { notifPush?: boolean; notifEmail?: boolean; notifSms?: boolean },
+    dto: UpdateNotificationSettingsDto,
   ) {
     return this.prisma.user.update({
       where: { id: userId },
-      data: settings,
+      data: dto,
       select: {
         id: true,
         notifPush: true,
         notifEmail: true,
         notifSms: true,
+        notifFriendRequests: true,
+        notifNewPosts: true,
+        notifEventInvites: true,
+        notifTicketReceipts: true,
       },
+    });
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
+
+    const updateData: any = { ...dto };
+
+    if (dto.birthdate) {
+      updateData.birthdate = new Date(dto.birthdate);
+    }
+
+    // Auto-compile displayName if firstName or lastName changes, and no explicit displayName was passed
+    if (!dto.displayName && (dto.firstName || dto.lastName)) {
+      const currentFirstName = dto.firstName !== undefined ? dto.firstName : user.firstName;
+      const currentLastName = dto.lastName !== undefined ? dto.lastName : user.lastName;
+      const nameParts = [currentFirstName, currentLastName].filter(Boolean);
+      if (nameParts.length > 0) {
+        updateData.displayName = nameParts.join(' ');
+      }
+    }
+
+    if (dto.username && dto.username !== user.username) {
+      const existing = await this.prisma.user.findUnique({
+        where: { username: dto.username },
+      });
+      if (existing) {
+        throw new BadRequestException('Username is already taken');
+      }
+    }
+
+    if (dto.className && user.schoolId) {
+      const classExists = await this.prisma.class.findFirst({
+        where: {
+          schoolId: user.schoolId,
+          className: dto.className,
+        },
+      });
+      if (!classExists) {
+        await this.prisma.class.create({
+          data: {
+            schoolId: user.schoolId,
+            className: dto.className,
+            graduationYear: new Date().getFullYear() + 3,
+          },
+        });
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
     });
   }
 }

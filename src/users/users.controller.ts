@@ -15,6 +15,8 @@ import {
   UpdateUserRoleDto,
   UpdateUserApprovalDto,
 } from './dto/update-user.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
@@ -126,9 +128,19 @@ export class UsersController {
   @ApiOperation({ summary: 'Update notification preferences for the logged-in user' })
   updateNotificationSettings(
     @Request() req: any,
-    @Body() body: { notifPush?: boolean; notifEmail?: boolean; notifSms?: boolean },
+    @Body() dto: UpdateNotificationSettingsDto,
   ) {
-    return this.usersService.updateNotificationSettings(req.user.id, body);
+    return this.usersService.updateNotificationSettings(req.user.id, dto);
+  }
+
+  @Patch('profile')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Update profile information for the logged-in user' })
+  updateProfile(
+    @Request() req: any,
+    @Body() dto: UpdateProfileDto,
+  ) {
+    return this.usersService.updateProfile(req.user.id, dto);
   }
 
   @Delete(':id')

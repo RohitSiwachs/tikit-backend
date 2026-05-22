@@ -1,8 +1,6 @@
 export enum UserRole {
   STUDENT = 'student',
   KAR_ADMIN = 'kar_admin',
-  EVENTANSVARIG = 'eventansvarig',
-  SCANNER = 'scanner',
   TIKIT_ADMIN = 'tikit_admin',
 }
 

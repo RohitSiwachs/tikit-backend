@@ -11,7 +11,7 @@ export class ScannerController {
   constructor(private readonly scannerService: ScannerService) {}
 
   @Post('scan')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Scan a QR code for a ticket or a card' })
   scan(@Body('qrToken') qrToken: string) {
     return this.scannerService.scan(qrToken);

@@ -21,21 +21,21 @@ export class TicketsController {
   }
 
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'List tickets' })
   findAll(@Query('eventId') eventId?: string, @Query('userId') userId?: string) {
     return this.ticketsService.findAll(eventId, userId);
   }
 
   @Patch(':id/void')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Void a ticket' })
   voidTicket(@Param('id') id: string) {
     return this.ticketsService.voidTicket(id);
   }
 
   @Patch(':id/check-in')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Check-in a ticket' })
   checkIn(@Param('id') id: string) {
     return this.ticketsService.checkIn(id);

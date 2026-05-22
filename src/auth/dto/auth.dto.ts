@@ -44,6 +44,17 @@ export class SendOtpDto {
   @ApiProperty()
   @IsString()
   userId: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}
+
+export class VerifySchoolDto {
+  @ApiProperty()
+  @IsString()
+  schoolCode: string;
 }
 
 export class VerifyOtpDto {
@@ -56,3 +67,4 @@ export class VerifyOtpDto {
   @MinLength(6)
   otpCode: string;
 }
+
