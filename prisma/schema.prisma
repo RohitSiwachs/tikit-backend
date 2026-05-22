@@ -54,6 +54,15 @@ model User {
   marketingConsent Boolean      @default(false)
   
   // Profile Additions
+  firstName       String?
+  lastName        String?
+  gender          String?
+  birthdate       DateTime?
+  interests       String[]
+  goingOutFrequency String?
+  preferredGroupSize String?
+  eventBudget     String?
+
   biography       String?
   achievements    String[]
   socialLinks     Json?
@@ -65,6 +74,15 @@ model User {
   notifPush       Boolean @default(true)
   notifEmail      Boolean @default(true)
   notifSms        Boolean @default(false)
+  notifFriendRequests Boolean @default(true)
+  notifNewPosts       Boolean @default(true)
+  notifEventInvites   Boolean @default(true)
+  notifTicketReceipts Boolean @default(true)
+
+  // Appearance & Language GDPR Consent
+  partnerConsent  Boolean @default(false)
+  theme           String  @default("system")
+  language        String  @default("sv")
 
   // Social Relations
   followers       User[] @relation("UserFollows")
@@ -102,6 +120,14 @@ model Event {
   isPinned            Boolean     @default(false)
   isPublished         Boolean     @default(false)
   isCancelled         Boolean     @default(false)
+
+  // Figma fields
+  sortOrder            Int         @default(1)
+  showImGoingButton    Boolean     @default(true)
+  attendanceVisibility String      @default("school") // school, all, friends
+  externalPriceDisplay String?
+  linkedCardIds        String[]    @default([])
+
   connectedSchools    School[]    @relation("EventConnectedSchools")
   ticketTypes         TicketType[]
   tickets             Ticket[]
@@ -123,6 +149,12 @@ model TicketType {
   quantityRemaining Int
   fewLeftThreshold  Int?     @default(10)
   isSoldOut         Boolean  @default(false)
+
+  // Figma fields
+  coverUrl          String?
+  sortOrder         Int      @default(1)
+  priceDisplay      String   @default("Free")
+  deepLink          String?
 }
 
 model Ticket {

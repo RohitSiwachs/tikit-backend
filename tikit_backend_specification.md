@@ -5,12 +5,10 @@ This specification contains all the technical details (Schema, DTOs, Routes) req
 ## 1. Database Schema (Prisma Format)
 
 ```prisma
-// Roles: tikit_admin, karordforande, eventansvarig, scanner, student
+// Roles: tikit_admin, karordforande, student
 enum Role {
   TIKIT_ADMIN
   KARORDFORANDE
-  EVENTANSVARIG
-  SCANNER
   STUDENT
 }
 
@@ -190,7 +188,6 @@ model Post {
 2.  **RBAC**:
     *   `TIKIT_ADMIN`: Can do everything.
     *   `KARORDFORANDE`: Can manage users and events for THEIR school only.
-    *   `SCANNER`: Can only call `POST /tickets/check-in`.
 3.  **Ticket Integrity**: `quantityRemaining` must decrement on every ticket issuance. No overselling.
 
 ## 4. Integration Details

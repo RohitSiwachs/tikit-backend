@@ -22,7 +22,7 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Post()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Create a new event with ticket types' })
   create(@Body() createEventDto: CreateEventDto) {
     return this.eventsService.create(createEventDto);
@@ -56,14 +56,14 @@ export class EventsController {
   }
 
   @Patch(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Update event (publish/cancel)' })
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
     return this.eventsService.update(id, updateEventDto);
   }
 
   @Get(':id/attendees')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Get list of attendees for an event' })
   getAttendees(@Param('id') id: string) {
     return this.eventsService.getAttendees(id);
@@ -78,7 +78,7 @@ export class EventsController {
   }
 
   @Post(':id/duplicate')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Duplicate an event' })
   duplicateEvent(@Param('id') id: string) {
     return this.eventsService.duplicateEvent(id);
@@ -99,7 +99,7 @@ export class EventsController {
   }
 
   @Patch(':id/unpublish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Unpublish an event' })
   unpublishEvent(@Param('id') id: string) {
     return this.eventsService.unpublishEvent(id);
@@ -108,7 +108,7 @@ export class EventsController {
   // --- TICKET TYPES ---
 
   @Post(':id/ticket-types')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Add a ticket type to an event' })
   createTicketType(
     @Param('id') id: string,
@@ -118,7 +118,7 @@ export class EventsController {
   }
 
   @Patch(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Update a ticket type' })
   updateTicketType(
     @Param('ticketTypeId') ticketTypeId: string,
@@ -128,7 +128,7 @@ export class EventsController {
   }
 
   @Delete(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Delete a ticket type' })
   removeTicketType(
     @Param('id') eventId: string,

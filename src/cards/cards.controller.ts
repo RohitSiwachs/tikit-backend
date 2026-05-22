@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Query, Patch, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Patch, Delete, Request } from '@nestjs/common';
 import { CardsService } from './cards.service';
 import { CreateCardDto, GenerateCodesDto, UpdateCardDto } from './dto/card.dto';
+import { ClaimCardDto } from './dto/claim-card.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
@@ -84,5 +85,12 @@ export class CardsController {
   @ApiOperation({ summary: 'View students who activated the card' })
   getActivatedStudents(@Param('id') id: string) {
     return this.cardsService.getActivatedStudents(id);
+  }
+
+  @Post('claim')
+  @Roles(Role.STUDENT, Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Claim and activate student card using a card code' })
+  claimCard(@Request() req: any, @Body() dto: ClaimCardDto) {
+    return this.cardsService.claimCard(req.user.id, dto.code);
   }
 }
