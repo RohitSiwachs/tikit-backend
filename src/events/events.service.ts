@@ -148,27 +148,85 @@ export class EventsService {
     });
   }
 
-  async getAttendees(id: string) {
-    const tickets = await this.prisma.ticket.findMany({
-      where: { eventId: id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            displayName: true,
-            email: true,
-            avatarUrl: true,
+  async getAttendees(
+    id: string,
+    query?: { search?: string; status?: string; page?: number; limit?: number }
+  ) {
+    const search = query?.search;
+    const status = query?.status;
+    const page = query?.page ? parseInt(query.page as any) : 1;
+    const limit = query?.limit ? parseInt(query.limit as any) : 50;
+    const skip = (page - 1) * limit;
+
+    const where: any = { eventId: id };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { code: { contains: search, mode: 'insensitive' } },
+        {
+          user: {
+            OR: [
+              { displayName: { contains: search, mode: 'insensitive' } },
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ]
+          }
+        }
+      ];
+    }
+
+    const [total, tickets] = await Promise.all([
+      this.prisma.ticket.count({ where }),
+      this.prisma.ticket.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          ticketType: { select: { name: true } },
+          user: {
+            select: {
+              id: true,
+              displayName: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              avatarUrl: true,
+              age: true,
+            },
           },
         },
-      },
-    });
+        orderBy: { user: { displayName: 'asc' } }
+      })
+    ]);
 
-    return tickets.map((t) => ({
-      ...t.user,
+    const attendees = tickets.map((t) => ({
+      id: t.user.id,
+      displayName: t.user.displayName,
+      firstName: t.user.firstName,
+      lastName: t.user.lastName,
+      avatarUrl: t.user.avatarUrl,
+      age: t.user.age,
       ticketId: t.id,
+      ticketCode: t.code,
       ticketStatus: t.status,
+      ticketTypeName: t.ticketType?.name,
       checkedInAt: t.checkedInAt,
     }));
+
+    return {
+      data: attendees,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      }
+    };
   }
 
   async remove(id: string) {

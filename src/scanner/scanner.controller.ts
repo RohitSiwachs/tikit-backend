@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get, Param } from '@nestjs/common';
 import { ScannerService } from './scanner.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,8 +12,15 @@ export class ScannerController {
 
   @Post('scan')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Scan a QR code for a ticket or a card' })
-  scan(@Body('qrToken') qrToken: string) {
-    return this.scannerService.scan(qrToken);
+  @ApiOperation({ summary: 'Scan or verify a QR code for a ticket or card' })
+  scan(@Body('qrToken') qrToken: string, @Body('verifyOnly') verifyOnly?: boolean) {
+    return this.scannerService.scan(qrToken, !!verifyOnly);
+  }
+
+  @Get('events/:eventId/stats')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get scan/attendance stats for an event' })
+  getStats(@Param('eventId') eventId: string) {
+    return this.scannerService.getEventStats(eventId);
   }
 }

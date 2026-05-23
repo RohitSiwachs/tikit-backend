@@ -5,23 +5,32 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ScannerService {
   constructor(private prisma: PrismaService) {}
 
-  async scan(qrToken: string) {
+  async scan(qrToken: string, verifyOnly: boolean = false) {
     // Check if it's a ticket
     if (qrToken.startsWith('qr_')) {
-      return this.scanTicket(qrToken);
+      return this.scanTicket(qrToken, verifyOnly);
     }
 
     // Otherwise, assume it's a card code
     return this.scanCard(qrToken);
   }
 
-  private async scanTicket(qrToken: string) {
+  private async scanTicket(qrToken: string, verifyOnly: boolean) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { qrToken },
       include: {
         event: true,
+        ticketType: { select: { name: true } },
         user: {
-          select: { displayName: true, email: true }
+          select: {
+            id: true,
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+            age: true,
+          }
         }
       }
     });
@@ -42,28 +51,43 @@ export class ScannerService {
       throw new BadRequestException('This ticket has been voided');
     }
 
-    if (ticket.status === 'CHECKED_IN') {
+    if (ticket.status === 'CHECKED_IN' && !verifyOnly) {
       throw new BadRequestException(`This ticket was already used at ${ticket.checkedInAt}`);
     }
 
-    // Mark as checked in
-    const updatedTicket = await this.prisma.ticket.update({
-      where: { id: ticket.id },
-      data: {
-        status: 'CHECKED_IN',
-        checkedInAt: new Date(),
-      }
-    });
+    let updatedStatus = ticket.status;
+    let checkedInAt = ticket.checkedInAt;
+
+    if (!verifyOnly && ticket.status !== 'CHECKED_IN') {
+      const updated = await this.prisma.ticket.update({
+        where: { id: ticket.id },
+        data: {
+          status: 'CHECKED_IN',
+          checkedInAt: new Date(),
+        }
+      });
+      updatedStatus = updated.status;
+      checkedInAt = updated.checkedInAt;
+    }
 
     // Calculate stats
-    const eventStats = await this.getEventScanStats(ticket.eventId);
+    const eventStats = await this.getEventStats(ticket.eventId);
 
     return {
       type: 'TICKET',
-      message: 'Ticket scanned successfully',
-      ticket: updatedTicket,
+      message: verifyOnly ? 'Ticket verified successfully' : 'Ticket scanned successfully',
+      isCheckedIn: updatedStatus === 'CHECKED_IN',
+      checkedInAt,
+      ticket: {
+        id: ticket.id,
+        code: ticket.code,
+        status: updatedStatus,
+      },
       user: ticket.user,
       event: { title: ticket.event.title },
+      ticketType: {
+        name: ticket.ticketType?.name || 'Standardbiljett',
+      },
       stats: eventStats,
     };
   }
@@ -73,7 +97,16 @@ export class ScannerService {
       where: { code },
       include: {
         card: true,
-        user: { select: { displayName: true, email: true } }
+        user: {
+          select: {
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+            age: true,
+          }
+        }
       }
     });
 
@@ -111,7 +144,7 @@ export class ScannerService {
     };
   }
 
-  private async getEventScanStats(eventId: string) {
+  async getEventStats(eventId: string) {
     const totalTickets = await this.prisma.ticket.count({
       where: { eventId, status: { not: 'VOID' } }
     });
@@ -120,10 +153,14 @@ export class ScannerService {
       where: { eventId, status: 'CHECKED_IN' }
     });
 
+    const remaining = totalTickets - scannedTickets;
+    const occupancyPercentage = totalTickets > 0 ? Math.round((scannedTickets / totalTickets) * 100) : 0;
+
     return {
       scannedCount: scannedTickets,
-      remainingEntries: totalTickets - scannedTickets,
-      totalCapacity: totalTickets
+      remainingEntries: remaining,
+      totalCapacity: totalTickets,
+      occupancyRate: occupancyPercentage,
     };
   }
 }
