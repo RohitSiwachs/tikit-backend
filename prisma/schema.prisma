@@ -155,6 +155,7 @@ model TicketType {
   sortOrder         Int      @default(1)
   priceDisplay      String   @default("Free")
   deepLink          String?
+  tickets           Ticket[]
 }
 
 model Ticket {
@@ -164,6 +165,7 @@ model Ticket {
   eventId      String
   event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   ticketTypeId String
+  ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id])
   code         String       @unique
   qrToken      String       @unique
   status       String       @default("ISSUED")

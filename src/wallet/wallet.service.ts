@@ -8,7 +8,20 @@ export class WalletService {
   async getWallet(userId: string) {
     const now = new Date();
 
-    // Get Tickets
+    // Fetch logged-in user profile details for cards/tickets detail screens
+    const userProfile = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        displayName: true,
+        firstName: true,
+        lastName: true,
+        username: true,
+        birthdate: true,
+        avatarUrl: true,
+      }
+    });
+
+    // Get Tickets including TicketType name/desc
     const tickets = await this.prisma.ticket.findMany({
       where: { userId },
       include: {
@@ -22,25 +35,42 @@ export class WalletService {
             coverUrl: true,
           }
         },
-        user: {
+        ticketType: {
           select: {
-            displayName: true,
-            email: true,
+            name: true,
+            description: true,
           }
         }
       }
     });
 
     const formattedTickets = tickets.map(ticket => ({
-      ...ticket,
+      id: ticket.id,
+      code: ticket.code,
+      qrToken: ticket.qrToken,
+      status: ticket.status,
+      checkedInAt: ticket.checkedInAt,
+      ticketTypeName: ticket.ticketType?.name,
+      ticketTypeDescription: ticket.ticketType?.description,
+      event: ticket.event,
       isExpired: ticket.event.endsAt < now,
     }));
 
-    // Get Activated Cards
+    // Get Activated Cards including School branding info
     const cardCodes = await this.prisma.cardCode.findMany({
       where: { userId, isUsed: true },
       include: {
-        card: true
+        card: {
+          include: {
+            school: {
+              select: {
+                name: true,
+                slug: true,
+                logoUrl: true,
+              }
+            }
+          }
+        }
       }
     });
 
@@ -55,10 +85,12 @@ export class WalletService {
       validFrom: code.card.validFrom,
       validUntil: code.card.validUntil,
       status: code.card.status,
+      school: code.card.school,
       isExpired: code.card.validUntil < now || code.card.status === 'blocked',
     }));
 
     return {
+      user: userProfile,
       tickets: formattedTickets,
       cards: formattedCards,
     };
@@ -94,12 +126,27 @@ export class WalletService {
         usedAt: new Date(),
         userId,
       },
+      include: {
+        card: {
+          include: {
+            school: { select: { name: true, logoUrl: true } }
+          }
+        },
+        user: { select: { username: true } }
+      }
     });
 
     return {
       message: 'Card activated successfully',
-      code: activatedCode.code,
-      cardTitle: cardCode.card.title,
+      username: activatedCode.user?.username,
+      card: {
+        title: activatedCode.card.title,
+        validUntil: activatedCode.card.validUntil,
+        benefits: activatedCode.card.benefits,
+        coverUrl: activatedCode.card.coverUrl,
+        status: 'active',
+        schoolName: activatedCode.card.school?.name,
+      }
     };
   }
 }
