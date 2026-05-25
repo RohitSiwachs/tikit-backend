@@ -50,13 +50,16 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('v1/docs', app, document);
-    console.log(`📚 Swagger docs at http://localhost:${process.env.PORT || 3000}/v1/docs`);
   }
 
   // ─── Start ────────────────────────────────────────────
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`TiKit API running on port ${port}`);
+  console.log(`\n🚀 TiKit API successfully started on port ${port}!`);
+  console.log(`🏥 Health check at:   http://localhost:${port}/v1/health`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`📚 Swagger docs at:   http://localhost:${port}/v1/docs\n`);
+  }
 }
 
 bootstrap();
