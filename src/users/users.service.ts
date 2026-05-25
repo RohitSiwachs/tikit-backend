@@ -1,6 +1,23 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../prisma-enums';
+
+const SAFE_USER_SELECT = {
+  id: true,
+  displayName: true,
+  firstName: true,
+  lastName: true,
+  username: true,
+  email: true,
+  avatarUrl: true,
+  role: true,
+  accountStatus: true,
+  approvalStatus: true,
+  className: true,
+  schoolId: true,
+  createdAt: true,
+} as const;
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 
@@ -47,10 +64,9 @@ export class UsersService {
         where,
         skip,
         take: limit,
-        include: {
-          school: {
-            select: { name: true },
-          },
+        select: {
+          ...SAFE_USER_SELECT,
+          school: { select: { name: true } },
         },
       }),
     ]);
@@ -87,7 +103,10 @@ export class UsersService {
   }
 
   async findOne(id: string) {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { ...SAFE_USER_SELECT, school: { select: { name: true } } },
+    });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
     return user;
   }
@@ -106,8 +125,14 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    return this.prisma.user.delete({
-      where: { id },
+    // Delete dependent records first to avoid FK constraint violations
+    return this.prisma.$transaction(async (tx) => {
+      await tx.ticket.deleteMany({ where: { userId: id } });
+      await tx.cardCode.deleteMany({ where: { userId: id } });
+      await tx.followRequest.deleteMany({
+        where: { OR: [{ senderId: id }, { receiverId: id }] },
+      });
+      return tx.user.delete({ where: { id } });
     });
   }
 
@@ -203,8 +228,26 @@ export class UsersService {
     };
   }
 
+  async getIncomingFollowRequests(userId: string) {
+    return this.prisma.followRequest.findMany({
+      where: { receiverId: userId, status: 'pending' },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            username: true,
+            avatarUrl: true,
+            school: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async requestFollow(senderId: string, receiverId: string) {
-    if (senderId === receiverId) throw new Error('Cannot follow yourself');
+    if (senderId === receiverId) throw new BadRequestException('Cannot follow yourself');
 
     const receiver = await this.prisma.user.findUnique({ where: { id: receiverId } });
     if (!receiver) throw new NotFoundException('User not found');
@@ -227,7 +270,7 @@ export class UsersService {
       where: { senderId, receiverId, status: 'pending' }
     });
 
-    if (existingReq) throw new Error('Follow request already pending');
+    if (existingReq) throw new ConflictException('Follow request already pending');
 
     await this.prisma.followRequest.create({
       data: { senderId, receiverId }
@@ -261,11 +304,23 @@ export class UsersService {
 
 
 
+  async unfollow(followerId: string, targetId: string) {
+    const target = await this.prisma.user.findUnique({ where: { id: targetId } });
+    if (!target) throw new NotFoundException('User not found');
+
+    await this.prisma.user.update({
+      where: { id: targetId },
+      data: { followers: { disconnect: { id: followerId } } },
+    });
+
+    return { message: 'Unfollowed successfully' };
+  }
+
   async assignCards(cardId: string, userIds: string[]) {
     const codesToCreate = userIds.map(userId => ({
       cardId,
       userId,
-      code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      code: crypto.randomBytes(4).toString('hex').toUpperCase(),
       isUsed: false,
     }));
 
@@ -280,14 +335,26 @@ export class UsersService {
   async getEngagementData(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      include: {
+      select: {
+        id: true,
+        displayName: true,
         tickets: {
-          include: { event: { select: { title: true, startsAt: true } } }
+          select: {
+            id: true,
+            status: true,
+            checkedInAt: true,
+            event: { select: { title: true, startsAt: true } },
+          },
         },
         cardCodes: {
-          include: { card: { select: { title: true } } }
-        }
-      }
+          select: {
+            id: true,
+            isUsed: true,
+            usedAt: true,
+            card: { select: { title: true } },
+          },
+        },
+      },
     });
 
     if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
@@ -380,6 +447,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id: userId },
       data: updateData,
+      select: SAFE_USER_SELECT,
     });
   }
 }

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\ROHIT\\\\Desktop\\\\innoaft\\\\ticket\\\\tikit-be\" -Recurse -Force | Select-Object FullName | Sort-Object FullName | ForEach-Object { $_.FullName })",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\ROHIT\\\\Desktop\\\\innoaft\\\\ticket\\\\tikit-be\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('joi'\\)\")",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

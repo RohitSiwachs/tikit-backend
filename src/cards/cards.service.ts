@@ -136,40 +136,42 @@ export class CardsService {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
 
+    // Pre-flight validation outside transaction
     const cardCode = await this.prisma.cardCode.findUnique({
       where: { code },
       include: { card: true },
     });
 
-    if (!cardCode) {
-      throw new BadRequestException('Invalid card code');
-    }
-
-    if (cardCode.isUsed) {
-      throw new BadRequestException('This card code has already been used');
-    }
-
+    if (!cardCode) throw new BadRequestException('Invalid card code');
     if (cardCode.userId && cardCode.userId !== userId) {
       throw new BadRequestException('This card code is assigned to another user');
     }
-
     if (user.schoolId && cardCode.card.schoolId !== user.schoolId) {
       throw new BadRequestException('This card does not belong to your school');
     }
 
-    const updatedCardCode = await this.prisma.cardCode.update({
-      where: { id: cardCode.id },
-      data: {
-        isUsed: true,
-        userId: userId,
-        usedAt: new Date(),
-      },
-      include: { card: true },
-    });
+    // Atomic claim: re-read inside transaction to prevent double-activation
+    const updatedCardCode = await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.cardCode.findUnique({
+        where: { code },
+        include: { card: true },
+      });
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { cardStatus: 'active' },
+      if (!fresh) throw new BadRequestException('Invalid card code');
+      if (fresh.isUsed) throw new BadRequestException('This card code has already been used');
+
+      const claimed = await tx.cardCode.update({
+        where: { id: fresh.id },
+        data: { isUsed: true, userId, usedAt: new Date() },
+        include: { card: true },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { cardStatus: 'active' },
+      });
+
+      return claimed;
     });
 
     return {

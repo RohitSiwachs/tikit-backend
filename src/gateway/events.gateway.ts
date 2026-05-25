@@ -9,17 +9,40 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 
 @WebSocketGateway({
-  cors: { origin: '*' },
+  cors: {
+    origin: process.env.CORS_ORIGIN || '*',
+    credentials: true,
+  },
   namespace: '/ws',
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer() server: Server;
   private logger = new Logger('EventsGateway');
 
+  constructor(private readonly jwtService: JwtService) {}
+
   handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+    const token =
+      (client.handshake.auth?.token as string) ||
+      (client.handshake.headers?.authorization as string)?.replace('Bearer ', '');
+
+    if (!token) {
+      this.logger.warn(`WS rejected — no token: ${client.id}`);
+      client.disconnect(true);
+      return;
+    }
+
+    try {
+      const payload = this.jwtService.verify(token);
+      (client as any).user = { id: payload.sub, role: payload.role };
+      this.logger.log(`WS connected: ${client.id} (user=${payload.sub})`);
+    } catch {
+      this.logger.warn(`WS rejected — invalid token: ${client.id}`);
+      client.disconnect(true);
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -33,7 +56,6 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const room = `event:${data.event_id}`;
     client.join(room);
-    this.logger.log(`Client ${client.id} joined room ${room}`);
     return { event: 'joined', room };
   }
 
@@ -47,22 +69,18 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { event: 'left', room };
   }
 
-  /** Called by TicketsService after a successful check-in */
   emitCheckinUpdate(eventId: string, payload: any) {
     this.server.to(`event:${eventId}`).emit('checkin:update', payload);
   }
 
-  /** Called by TicketsService after a ticket is sold */
   emitTicketSold(eventId: string, payload: any) {
     this.server.to(`event:${eventId}`).emit('ticket:sold', payload);
   }
 
-  /** Called by FeedService when a new post is created */
   emitNewPost(payload: any) {
     this.server.emit('feed:new_post', payload);
   }
 
-  /** Called by FeedService when a new comment is added */
   emitNewComment(postId: string, payload: any) {
     this.server.emit('feed:new_comment', { comment: payload, post_id: postId });
   }

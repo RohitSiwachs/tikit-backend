@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import * as crypto from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
@@ -83,8 +85,7 @@ export class SchoolsService {
   }
 
   async regenerateCode(id: string) {
-    // Generate a random 6 character code like SKOL-XYZ123
-    const newCode = `SKOL-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const newCode = `SKOL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     return this.prisma.school.update({
       where: { id },
       data: { schoolCode: newCode },
@@ -98,16 +99,22 @@ export class SchoolsService {
   }
 
   async uploadStudents(schoolId: string, students: { email: string, displayName: string, className?: string }[]) {
-    const usersToCreate = students.map((s, index) => ({
-      username: s.email.split('@')[0] + Math.random().toString(36).substring(2, 6),
-      email: s.email,
-      displayName: s.displayName,
-      className: s.className,
-      schoolId,
-      password: 'defaultPassword123', // In a real app, generate a secure random one or send invite link
-      approvalStatus: 'pending',
-      role: 'STUDENT',
-    }));
+    const usersToCreate = await Promise.all(
+      students.map(async (s) => {
+        const tempPassword = crypto.randomBytes(12).toString('hex');
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
+        return {
+          username: s.email.split('@')[0] + crypto.randomBytes(2).toString('hex'),
+          email: s.email,
+          displayName: s.displayName,
+          className: s.className,
+          schoolId,
+          password: hashedPassword,
+          approvalStatus: 'pending',
+          role: 'STUDENT',
+        };
+      }),
+    );
 
     await this.prisma.user.createMany({
       data: usersToCreate,
@@ -147,7 +154,7 @@ export class SchoolsService {
     const codesToCreate = students.map(student => ({
       cardId,
       userId: student.id,
-      code: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      code: crypto.randomBytes(4).toString('hex').toUpperCase(),
       isUsed: false,
     }));
 

@@ -112,6 +112,23 @@ export class UsersController {
     return this.usersService.requestFollow(req.user.id, targetUserId);
   }
 
+  @Delete(':id/follow')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Unfollow a user' })
+  unfollowUser(
+    @Param('id') targetUserId: string,
+    @Request() req: any,
+  ) {
+    return this.usersService.unfollow(req.user.id, targetUserId);
+  }
+
+  @Get('me/follow-requests')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'List incoming pending follow requests for the logged-in user' })
+  getFollowRequests(@Request() req: any) {
+    return this.usersService.getIncomingFollowRequests(req.user.id);
+  }
+
   @Patch('follow-requests/:requestId')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Respond to a follow request' })

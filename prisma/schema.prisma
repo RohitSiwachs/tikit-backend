@@ -30,6 +30,9 @@ model School {
   classes       Class[]
   connectionRequests EventConnectionRequest[]
   createdAt     DateTime @default(now())
+
+  @@index([isActive])
+  @@index([city])
 }
 
 model User {
@@ -47,13 +50,12 @@ model User {
   age             Int?
   avatarUrl       String?
   isVerified      Boolean       @default(false)
-  otpCode         String?
+  otpCode         String?       // stored as bcrypt hash in production
   otpExpiresAt    DateTime?
-  approvalStatus  String        @default("pending") // approved, pending, rejected
-  cardStatus      String        @default("inactive") // active, inactive, blocked
+  approvalStatus  String        @default("pending")
+  cardStatus      String        @default("inactive")
   marketingConsent Boolean      @default(false)
-  
-  // Profile Additions
+
   firstName       String?
   lastName        String?
   gender          String?
@@ -70,7 +72,6 @@ model User {
   isPrivateAccount        Boolean @default(false)
   expoPushToken   String?
 
-  // Notification Preferences
   notifPush       Boolean @default(true)
   notifEmail      Boolean @default(true)
   notifSms        Boolean @default(false)
@@ -79,17 +80,18 @@ model User {
   notifEventInvites   Boolean @default(true)
   notifTicketReceipts Boolean @default(true)
 
-  // Appearance & Language GDPR Consent
   partnerConsent  Boolean @default(false)
   theme           String  @default("system")
   language        String  @default("sv")
 
-  // Social Relations
+  // Soft delete
+  deletedAt       DateTime?
+
   followers       User[] @relation("UserFollows")
   following       User[] @relation("UserFollows")
   friends         User[] @relation("UserFriends")
   friendOf        User[] @relation("UserFriends")
-  
+
   sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
   receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
 
@@ -98,7 +100,29 @@ model User {
   cardCodes       CardCode[]
   eventLikes      EventLike[]
   eventComments   EventComment[]
+  refreshTokens   RefreshToken[]
+  vouchers        Voucher[]
+  postLikes       PostLike[]
+  postComments    PostComment[]
   createdAt       DateTime      @default(now())
+
+  @@index([schoolId])
+  @@index([role])
+  @@index([approvalStatus])
+  @@index([deletedAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
 }
 
 model Event {
@@ -115,18 +139,20 @@ model Event {
   endsAt              DateTime
   ageLimit            Int?
   externalBuyUrl      String?
-  externalTicketStatus String?    @default("IN_STOCK") // IN_STOCK, FEW_LEFT, SOLD_OUT
-  status              String      @default("draft") // draft, published, cancelled
+  externalTicketStatus String?    @default("IN_STOCK")
+  status              String      @default("draft")
   isPinned            Boolean     @default(false)
   isPublished         Boolean     @default(false)
   isCancelled         Boolean     @default(false)
 
-  // Figma fields
   sortOrder            Int         @default(1)
   showImGoingButton    Boolean     @default(true)
-  attendanceVisibility String      @default("school") // school, all, friends
+  attendanceVisibility String      @default("school")
   externalPriceDisplay String?
   linkedCardIds        String[]    @default([])
+
+  // Soft delete
+  deletedAt           DateTime?
 
   connectedSchools    School[]    @relation("EventConnectedSchools")
   ticketTypes         TicketType[]
@@ -135,7 +161,13 @@ model Event {
   likes               EventLike[]
   comments            EventComment[]
   connectionRequests  EventConnectionRequest[]
+  vouchers            Voucher[]
   createdAt           DateTime    @default(now())
+
+  @@index([schoolId])
+  @@index([isPublished])
+  @@index([startsAt])
+  @@index([deletedAt])
 }
 
 model TicketType {
@@ -150,12 +182,14 @@ model TicketType {
   fewLeftThreshold  Int?     @default(10)
   isSoldOut         Boolean  @default(false)
 
-  // Figma fields
   coverUrl          String?
   sortOrder         Int      @default(1)
   priceDisplay      String   @default("Free")
   deepLink          String?
   tickets           Ticket[]
+  vouchers          Voucher[]
+
+  @@index([eventId])
 }
 
 model Ticket {
@@ -171,6 +205,33 @@ model Ticket {
   status       String       @default("ISSUED")
   checkedInAt  DateTime?
   createdAt    DateTime     @default(now())
+
+  // Prevent duplicate tickets per user per event
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+  @@index([status])
+}
+
+model Voucher {
+  id             String      @id @default(uuid())
+  code           String      @unique
+  eventId        String
+  event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId   String
+  ticketType     TicketType  @relation(fields: [ticketTypeId], references: [id])
+  createdById    String
+  createdBy      User        @relation(fields: [createdById], references: [id])
+  assignedToId   String?
+  redeemedById   String?
+  redeemedAt     DateTime?
+  expiresAt      DateTime?
+  isUsed         Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+
+  @@index([eventId])
+  @@index([code])
+  @@index([isUsed])
 }
 
 model Card {
@@ -183,24 +244,58 @@ model Card {
   benefits           String[]
   validFrom          DateTime
   validUntil         DateTime
-  status             String   @default("draft") // draft, active, blocked, paused
-  codeGenerationType String   @default("individual") // individual, batch
+  status             String   @default("draft")
+  codeGenerationType String   @default("individual")
   codes              CardCode[]
   createdAt          DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([status])
 }
 
 model Post {
   id          String   @id @default(uuid())
   body        String
   imageUrl    String?
-  postType    String   @default("text") // text, image, poll, event_card
+  postType    String   @default("text")
   schoolId    String
   school      School   @relation(fields: [schoolId], references: [id])
   authorId    String
   author      User     @relation(fields: [authorId], references: [id])
   eventId     String?
   event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  likes       PostLike[]
+  comments    PostComment[]
+
+  // Soft delete
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
+
+  @@index([schoolId])
+  @@index([deletedAt])
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([postId])
 }
 
 model CardCode {
@@ -213,6 +308,9 @@ model CardCode {
   user      User?    @relation(fields: [userId], references: [id])
   usedAt    DateTime?
   createdAt DateTime @default(now())
+
+  @@index([cardId])
+  @@index([userId])
 }
 
 model Class {
@@ -223,28 +321,33 @@ model Class {
   graduationYear Int
   studentCount   Int      @default(0)
   createdAt      DateTime @default(now())
+
+  @@index([schoolId])
 }
 
 model Segment {
   id             String   @id @default(uuid())
   name           String
-  filters        String   // JSON string storing the filter criteria
+  filters        Json     // Changed from String to Json
   estimatedCount Int      @default(0)
   createdAt      DateTime @default(now())
 }
 
 model Campaign {
   id             String    @id @default(uuid())
-  channel        String    // push, sms, email
-  segmentFilters String    // JSON string storing the filters used for this campaign
+  channel        String
+  segmentFilters Json      // Changed from String to Json
   title          String
   body           String
-  sendMode       String    // now, later
+  sendMode       String
   scheduledAt    DateTime?
-  status         String    @default("draft") // draft, scheduled, sent, cancelled
+  status         String    @default("draft")
   sentCount      Int       @default(0)
   openCount      Int       @default(0)
   createdAt      DateTime  @default(now())
+
+  @@index([status])
+  @@index([scheduledAt])
 }
 
 model EventConnectionRequest {
@@ -253,8 +356,10 @@ model EventConnectionRequest {
   event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   requestingSchoolId String
   requestingSchool   School   @relation(fields: [requestingSchoolId], references: [id], onDelete: Cascade)
-  status             String   @default("pending") // pending, approved, rejected
+  status             String   @default("pending")
   createdAt          DateTime @default(now())
+
+  @@index([eventId])
 }
 
 model FollowRequest {
@@ -263,8 +368,11 @@ model FollowRequest {
   sender      User     @relation("SentFollowRequests", fields: [senderId], references: [id], onDelete: Cascade)
   receiverId  String
   receiver    User     @relation("ReceivedFollowRequests", fields: [receiverId], references: [id], onDelete: Cascade)
-  status      String   @default("pending") // pending, approved, rejected
+  status      String   @default("pending")
   createdAt   DateTime @default(now())
+
+  @@index([receiverId])
+  @@index([senderId])
 }
 
 model EventLike {
@@ -286,4 +394,6 @@ model EventComment {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   body      String
   createdAt DateTime @default(now())
+
+  @@index([eventId])
 }

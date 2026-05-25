@@ -2,15 +2,24 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // ─── Global Prefix ──────────────────────────────────────
+  // ─── Security headers ─────────────────────────────────
+  app.use(helmet());
+
+  // ─── Body size limit ──────────────────────────────────
+  app.use(require('express').json({ limit: '1mb' }));
+  app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
+
+  // ─── Global Prefix ────────────────────────────────────
   app.setGlobalPrefix('v1');
 
-  // ─── Global Pipes ──────────────────────────────────────
+  // ─── Global Pipes ─────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -19,30 +28,35 @@ async function bootstrap() {
     }),
   );
 
-  // ─── Serialization (respects @Exclude() on entities) ───
+  // ─── Global Filters ───────────────────────────────────
+  app.useGlobalFilters(new PrismaExceptionFilter());
+
+  // ─── Serialization ────────────────────────────────────
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
-  // ─── CORS ──────────────────────────────────────────────
+  // ─── CORS ─────────────────────────────────────────────
   app.enableCors({
     origin: process.env.CORS_ORIGIN || '*',
     credentials: true,
   });
 
-  // ─── Swagger ───────────────────────────────────────────
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('TiKit API')
-    .setDescription('School event ticketing platform API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('v1/docs', app, document);
+  // ─── Swagger (disabled in production) ─────────────────
+  if (process.env.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('TiKit API')
+      .setDescription('School event ticketing platform API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('v1/docs', app, document);
+    console.log(`📚 Swagger docs at http://localhost:${process.env.PORT || 3000}/v1/docs`);
+  }
 
-  // ─── Start ─────────────────────────────────────────────
+  // ─── Start ────────────────────────────────────────────
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`🎟️  TiKit API running on http://localhost:${port}/v1`);
-  console.log(`📚 Swagger docs at http://localhost:${port}/v1/docs`);
+  console.log(`TiKit API running on port ${port}`);
 }
 
 bootstrap();

@@ -97,43 +97,26 @@ export class WalletService {
   }
 
   async activateCard(userId: string, code: string) {
-    const cardCode = await this.prisma.cardCode.findUnique({
-      where: { code },
-      include: { card: true }
-    });
+    // Atomic activation: re-read inside transaction to prevent double-activation race
+    const activatedCode = await this.prisma.$transaction(async (tx) => {
+      const cardCode = await tx.cardCode.findUnique({
+        where: { code },
+        include: { card: true },
+      });
 
-    if (!cardCode) {
-      throw new NotFoundException('Card code not found');
-    }
+      if (!cardCode) throw new NotFoundException('Card code not found');
+      if (cardCode.isUsed) throw new BadRequestException('Card code has already been used');
+      if (cardCode.card.status === 'blocked') throw new BadRequestException('This card has been blocked');
+      if (new Date() > cardCode.card.validUntil) throw new BadRequestException('This card has expired');
 
-    if (cardCode.isUsed) {
-      throw new BadRequestException('Card code has already been used');
-    }
-
-    if (cardCode.card.status === 'blocked') {
-      throw new BadRequestException('This card has been blocked');
-    }
-
-    if (new Date() > cardCode.card.validUntil) {
-      throw new BadRequestException('This card has expired');
-    }
-
-    // Activate the card
-    const activatedCode = await this.prisma.cardCode.update({
-      where: { id: cardCode.id },
-      data: {
-        isUsed: true,
-        usedAt: new Date(),
-        userId,
-      },
-      include: {
-        card: {
-          include: {
-            school: { select: { name: true, logoUrl: true } }
-          }
+      return tx.cardCode.update({
+        where: { id: cardCode.id },
+        data: { isUsed: true, usedAt: new Date(), userId },
+        include: {
+          card: { include: { school: { select: { name: true, logoUrl: true } } } },
+          user: { select: { username: true } },
         },
-        user: { select: { username: true } }
-      }
+      });
     });
 
     return {
@@ -146,7 +129,7 @@ export class WalletService {
         coverUrl: activatedCode.card.coverUrl,
         status: 'active',
         schoolName: activatedCode.card.school?.name,
-      }
+      },
     };
   }
 }
