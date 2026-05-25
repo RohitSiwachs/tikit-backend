@@ -15,8 +15,16 @@ export const envValidationSchema = Joi.object({
 
   // AWS S3
   AWS_REGION: Joi.string().required(),
-  AWS_ACCESS_KEY_ID: Joi.string().required(),
-  AWS_SECRET_ACCESS_KEY: Joi.string().required(),
+  AWS_ACCESS_KEY_ID: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional().allow(''),
+  }),
+  AWS_SECRET_ACCESS_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional().allow(''),
+  }),
   AWS_S3_BUCKET: Joi.string().required(),
 
   // 46elks SMS (optional — falls back to mock in dev)
