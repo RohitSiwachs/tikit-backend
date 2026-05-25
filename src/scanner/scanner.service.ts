@@ -1,17 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsGateway } from '../gateway/events.gateway';
 
 @Injectable()
 export class ScannerService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventsGateway: EventsGateway,
+  ) {}
 
   async scan(qrToken: string, verifyOnly: boolean = false) {
-    // Check if it's a ticket
+    if (!qrToken) throw new BadRequestException('QR token is required');
+
+    // Tickets always use the qr_ prefix (enforced by generateQrToken())
     if (qrToken.startsWith('qr_')) {
       return this.scanTicket(qrToken, verifyOnly);
     }
 
-    // Otherwise, assume it's a card code
+    // Anything else is treated as a card activation code
     return this.scanCard(qrToken);
   }
 
@@ -30,21 +36,19 @@ export class ScannerService {
             email: true,
             avatarUrl: true,
             age: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
-    if (!ticket) {
-      throw new NotFoundException('Invalid ticket QR code');
-    }
+    if (!ticket) throw new NotFoundException('Invalid QR code — ticket not found');
 
     if (ticket.event.isCancelled) {
       throw new BadRequestException('This event has been cancelled');
     }
 
     if (new Date() > ticket.event.endsAt) {
-      throw new BadRequestException('This event has already ended (Expired)');
+      throw new BadRequestException('This event has already ended');
     }
 
     if (ticket.status === 'VOID') {
@@ -52,42 +56,46 @@ export class ScannerService {
     }
 
     if (ticket.status === 'CHECKED_IN' && !verifyOnly) {
-      throw new BadRequestException(`This ticket was already used at ${ticket.checkedInAt}`);
+      throw new BadRequestException(`Ticket already used at ${ticket.checkedInAt}`);
     }
 
-    let updatedStatus = ticket.status;
+    let finalStatus = ticket.status;
     let checkedInAt = ticket.checkedInAt;
+    let eventStats: Awaited<ReturnType<typeof this.getEventStats>> | null = null;
 
     if (!verifyOnly && ticket.status !== 'CHECKED_IN') {
       const updated = await this.prisma.ticket.update({
         where: { id: ticket.id },
-        data: {
-          status: 'CHECKED_IN',
-          checkedInAt: new Date(),
-        }
+        data: { status: 'CHECKED_IN', checkedInAt: new Date() },
       });
-      updatedStatus = updated.status;
+      finalStatus = updated.status;
       checkedInAt = updated.checkedInAt;
+
+      // Fetch stats once and reuse for both broadcast and response
+      eventStats = await this.getEventStats(ticket.eventId);
+      this.eventsGateway.emitCheckinUpdate(ticket.eventId, {
+        userId: ticket.user.id,
+        userName: ticket.user.displayName,
+        ticketType: ticket.ticketType?.name ?? 'Standard',
+        checkedInAt,
+        totalCheckins: eventStats.scannedCount,
+      });
     }
 
-    // Calculate stats
-    const eventStats = await this.getEventStats(ticket.eventId);
+    // Only fetch if not already fetched above (verify-only path)
+    if (!eventStats) {
+      eventStats = await this.getEventStats(ticket.eventId);
+    }
 
     return {
       type: 'TICKET',
-      message: verifyOnly ? 'Ticket verified successfully' : 'Ticket scanned successfully',
-      isCheckedIn: updatedStatus === 'CHECKED_IN',
+      message: verifyOnly ? 'Ticket is valid' : 'Check-in successful',
+      isCheckedIn: finalStatus === 'CHECKED_IN',
       checkedInAt,
-      ticket: {
-        id: ticket.id,
-        code: ticket.code,
-        status: updatedStatus,
-      },
+      ticket: { id: ticket.id, code: ticket.code, status: finalStatus },
       user: ticket.user,
-      event: { title: ticket.event.title },
-      ticketType: {
-        name: ticket.ticketType?.name || 'Standardbiljett',
-      },
+      event: { id: ticket.event.id, title: ticket.event.title },
+      ticketType: { name: ticket.ticketType?.name ?? 'Standard' },
       stats: eventStats,
     };
   }
@@ -99,20 +107,14 @@ export class ScannerService {
         card: true,
         user: {
           select: {
-            displayName: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            avatarUrl: true,
-            age: true,
-          }
-        }
-      }
+            displayName: true, firstName: true, lastName: true,
+            email: true, avatarUrl: true, age: true,
+          },
+        },
+      },
     });
 
-    if (!cardCode) {
-      throw new NotFoundException('Invalid card code');
-    }
+    if (!cardCode) throw new NotFoundException('Invalid card code — not found');
 
     if (cardCode.card.status === 'blocked') {
       throw new BadRequestException('This card has been blocked');
@@ -126,41 +128,31 @@ export class ScannerService {
       throw new BadRequestException('This card has expired');
     }
 
-    if (cardCode.isUsed) {
-      return {
-        type: 'CARD',
-        message: 'Card is valid and already activated',
-        cardTitle: cardCode.card.title,
-        user: cardCode.user,
-        activatedAt: cardCode.usedAt,
-      };
-    }
-
     return {
       type: 'CARD',
-      message: 'Card code is valid and ready to be activated',
+      message: cardCode.isUsed
+        ? 'Card is valid and already activated'
+        : 'Card code is valid and ready to be activated',
       cardTitle: cardCode.card.title,
+      cardBenefits: cardCode.card.benefits,
       validUntil: cardCode.card.validUntil,
+      isActivated: cardCode.isUsed,
+      activatedAt: cardCode.usedAt ?? null,
+      user: cardCode.isUsed ? cardCode.user : null,
     };
   }
 
   async getEventStats(eventId: string) {
-    const totalTickets = await this.prisma.ticket.count({
-      where: { eventId, status: { not: 'VOID' } }
-    });
-
-    const scannedTickets = await this.prisma.ticket.count({
-      where: { eventId, status: 'CHECKED_IN' }
-    });
-
-    const remaining = totalTickets - scannedTickets;
-    const occupancyPercentage = totalTickets > 0 ? Math.round((scannedTickets / totalTickets) * 100) : 0;
+    const [totalTickets, scannedTickets] = await Promise.all([
+      this.prisma.ticket.count({ where: { eventId, status: { not: 'VOID' } } }),
+      this.prisma.ticket.count({ where: { eventId, status: 'CHECKED_IN' } }),
+    ]);
 
     return {
       scannedCount: scannedTickets,
-      remainingEntries: remaining,
+      remainingEntries: totalTickets - scannedTickets,
       totalCapacity: totalTickets,
-      occupancyRate: occupancyPercentage,
+      occupancyRate: totalTickets > 0 ? Math.round((scannedTickets / totalTickets) * 100) : 0,
     };
   }
 }

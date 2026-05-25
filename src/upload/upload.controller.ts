@@ -4,7 +4,7 @@ import { UploadService } from './upload.service';
 
 @ApiTags('Upload')
 @ApiBearerAuth()
-@Controller('api/v1/upload')
+@Controller('upload')
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 

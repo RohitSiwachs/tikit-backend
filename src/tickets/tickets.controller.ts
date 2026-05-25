@@ -11,37 +11,40 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Post('claim')
-  @ApiOperation({ summary: 'Claim a free ticket' })
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @ApiOperation({ summary: 'Claim a free ticket for an event' })
   claimFreeTicket(
     @Request() req: any,
     @Body('eventId') eventId: string,
     @Body('ticketTypeId') ticketTypeId: string,
   ) {
-    return this.ticketsService.claimFreeTicket(req.user.sub, eventId, ticketTypeId);
+    // Fixed: was req.user.sub (undefined) — JWT strategy maps sub → id
+    return this.ticketsService.claimFreeTicket(req.user.id, eventId, ticketTypeId);
   }
 
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'List tickets' })
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'List tickets (admin)' })
   findAll(@Query('eventId') eventId?: string, @Query('userId') userId?: string) {
     return this.ticketsService.findAll(eventId, userId);
   }
 
   @Patch(':id/void')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Void a ticket' })
   voidTicket(@Param('id') id: string) {
     return this.ticketsService.voidTicket(id);
   }
 
   @Patch(':id/check-in')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Check-in a ticket' })
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @ApiOperation({ summary: 'Manually check-in a ticket by ID' })
   checkIn(@Param('id') id: string) {
     return this.ticketsService.checkIn(id);
   }
 
   @Get(':id')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Get ticket details' })
   findOne(@Param('id') id: string) {
     return this.ticketsService.findOne(id);

@@ -22,10 +22,10 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Post()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Create a new event with ticket types' })
-  create(@Body() createEventDto: CreateEventDto) {
-    return this.eventsService.create(createEventDto);
+  create(@Body() createEventDto: CreateEventDto, @Request() req: any) {
+    return this.eventsService.create(createEventDto, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
   }
 
   @Get()
@@ -56,14 +56,14 @@ export class EventsController {
   }
 
   @Patch(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update event (publish/cancel)' })
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
-    return this.eventsService.update(id, updateEventDto);
+  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @Request() req: any) {
+    return this.eventsService.update(id, updateEventDto, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
   }
 
   @Get(':id/attendees')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Get list of attendees for an event with search, filtering, and pagination' })
   getAttendees(
     @Param('id') id: string,
@@ -83,13 +83,13 @@ export class EventsController {
   @Delete(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Delete an event' })
-  async remove(@Param('id') id: string) {
-    await this.eventsService.remove(id);
+  async remove(@Param('id') id: string, @Request() req: any) {
+    await this.eventsService.remove(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
     return { message: 'Event deleted successfully', id };
   }
 
   @Post(':id/duplicate')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Duplicate an event' })
   duplicateEvent(@Param('id') id: string) {
     return this.eventsService.duplicateEvent(id);
@@ -109,49 +109,82 @@ export class EventsController {
     return this.eventsService.unpinEvent(id);
   }
 
+  @Patch(':id/publish')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Publish an event — makes it visible to students' })
+  publishEvent(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.publishEvent(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+  }
+
   @Patch(':id/unpublish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Unpublish an event' })
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Unpublish an event — hides it from students without deleting' })
   unpublishEvent(@Param('id') id: string) {
     return this.eventsService.unpublishEvent(id);
+  }
+
+  @Patch(':id/cancel')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Cancel an event — scanner will reject all tickets for cancelled events' })
+  cancelEvent(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.cancelEvent(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
   }
 
   // --- TICKET TYPES ---
 
   @Post(':id/ticket-types')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Add a ticket type to an event' })
   createTicketType(
     @Param('id') id: string,
     @Body() createTicketTypeDto: CreateTicketTypeDto,
+    @Request() req: any,
   ) {
-    return this.eventsService.createTicketType(id, createTicketTypeDto);
+    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.createTicketType(id, createTicketTypeDto, schoolId);
   }
 
   @Patch(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update a ticket type' })
   updateTicketType(
     @Param('ticketTypeId') ticketTypeId: string,
     @Body() updateTicketTypeDto: UpdateTicketTypeDto,
+    @Request() req: any,
   ) {
-    return this.eventsService.updateTicketType(ticketTypeId, updateTicketTypeDto);
+    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.updateTicketType(ticketTypeId, updateTicketTypeDto, schoolId);
+  }
+
+  @Patch(':id/ticket-types/:ticketTypeId/sold-out')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Mark a ticket type as sold out or available' })
+  markSoldOut(
+    @Param('id') eventId: string,
+    @Param('ticketTypeId') ticketTypeId: string,
+    @Body('isSoldOut') isSoldOut: boolean,
+    @Request() req: any,
+  ) {
+    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.markTicketTypeSoldOut(eventId, ticketTypeId, isSoldOut, schoolId);
   }
 
   @Delete(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Delete a ticket type' })
   removeTicketType(
     @Param('id') eventId: string,
     @Param('ticketTypeId') ticketTypeId: string,
+    @Request() req: any,
   ) {
-    return this.eventsService.removeTicketType(eventId, ticketTypeId);
+    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.removeTicketType(eventId, ticketTypeId, schoolId);
   }
 
   // --- EVENT DETAIL FLOW ---
 
   @Post(':id/like')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Toggle like on an event' })
   likeEvent(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.likeEvent(id, req.user.id);
@@ -164,7 +197,7 @@ export class EventsController {
   }
 
   @Post(':id/comments')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Add a comment to an event' })
   addComment(
     @Param('id') id: string,
@@ -175,14 +208,21 @@ export class EventsController {
   }
 
   @Post(':id/rsvp')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: "I'm Going — RSVP & fetch free ticket (internal events)" })
   rsvp(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.rsvp(id, req.user.id);
   }
 
+  @Delete(':id/rsvp')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @ApiOperation({ summary: 'Cancel RSVP — void ticket and restore capacity' })
+  cancelRsvp(@Param('id') id: string, @Request() req: any) {
+    return this.eventsService.cancelRsvp(id, req.user.id);
+  }
+
   @Get(':id/external-link')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Get external ticket provider link (external events only)' })
   getExternalLink(@Param('id') id: string) {
     return this.eventsService.getExternalLink(id);
@@ -195,9 +235,9 @@ export class EventsController {
   @ApiOperation({ summary: 'Request connection to another schools event' })
   requestConnection(
     @Param('id') eventId: string,
-    @Body('requestingSchoolId') requestingSchoolId: string,
+    @Request() req: any,
   ) {
-    return this.eventsService.requestConnection(eventId, requestingSchoolId);
+    return this.eventsService.requestConnection(eventId, req.user.schoolId);
   }
 
   @Get(':id/connections/requests')

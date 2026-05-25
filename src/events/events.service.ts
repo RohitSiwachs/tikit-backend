@@ -1,13 +1,18 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import crypto from 'crypto';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { generateQrToken, generateTicketCode } from '../tickets/tickets.service';
 import { CreateEventDto, UpdateEventDto, CreateTicketTypeDto, UpdateTicketTypeDto } from './dto/create-event.dto';
 
 @Injectable()
 export class EventsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateEventDto) {
+  async create(dto: CreateEventDto, requestingSchoolId?: string | null) {
+    // Non-admin users can only create events for their own school
+    if (requestingSchoolId && dto.schoolId && dto.schoolId !== requestingSchoolId) {
+      throw new ForbiddenException('You can only create events for your own school');
+    }
     const { ticketTypes, connectedSchools, ...eventData } = dto;
     return this.prisma.event.create({
       data: {
@@ -127,7 +132,8 @@ export class EventsService {
     };
   }
 
-  async update(id: string, dto: UpdateEventDto) {
+  async update(id: string, dto: UpdateEventDto, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const { ticketTypes, connectedSchools, ...updateData } = dto;
     
     const data: any = { ...updateData };
@@ -229,7 +235,8 @@ export class EventsService {
     };
   }
 
-  async remove(id: string) {
+  async remove(id: string, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) {
       throw new NotFoundException(`Event with ID ${id} not found`);
@@ -288,11 +295,42 @@ export class EventsService {
     return this.update(id, { isPinned: false } as any);
   }
 
+  async publishEvent(id: string, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
+    const event = await this.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
+    if (event.isCancelled) throw new BadRequestException('Cannot publish a cancelled event');
+    return this.prisma.event.update({
+      where: { id },
+      data: { isPublished: true, status: 'published' },
+    });
+  }
+
   async unpublishEvent(id: string) {
     return this.update(id, { isPublished: false, status: 'draft' } as any);
   }
 
-  async createTicketType(eventId: string, dto: CreateTicketTypeDto) {
+  async cancelEvent(id: string, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
+    const event = await this.prisma.event.findUnique({ where: { id } });
+    if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
+    if (event.isCancelled) throw new BadRequestException('Event is already cancelled');
+    return this.prisma.event.update({
+      where: { id },
+      data: { isCancelled: true, isPublished: false, status: 'cancelled' },
+    });
+  }
+
+  private async assertSchoolOwnership(eventId: string, requestingSchoolId: string | null) {
+    if (!requestingSchoolId) return; // TIKIT_ADMIN has no schoolId — always allowed
+    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { schoolId: true } });
+    if (event && event.schoolId !== requestingSchoolId) {
+      throw new ForbiddenException('You can only manage events belonging to your school');
+    }
+  }
+
+  async createTicketType(eventId: string, dto: CreateTicketTypeDto, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.create({
       data: {
         ...dto,
@@ -302,16 +340,30 @@ export class EventsService {
     });
   }
 
-  async updateTicketType(ticketTypeId: string, dto: UpdateTicketTypeDto) {
+  async updateTicketType(ticketTypeId: string, dto: UpdateTicketTypeDto, requestingSchoolId?: string | null) {
+    const tt = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId }, select: { eventId: true } });
+    if (tt) await this.assertSchoolOwnership(tt.eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.update({
       where: { id: ticketTypeId },
       data: dto,
     });
   }
 
-  async removeTicketType(eventId: string, ticketTypeId: string) {
+  async removeTicketType(eventId: string, ticketTypeId: string, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.delete({
       where: { id: ticketTypeId },
+    });
+  }
+
+  async markTicketTypeSoldOut(eventId: string, ticketTypeId: string, isSoldOut: boolean, requestingSchoolId?: string | null) {
+    await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
+    const tt = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
+    if (!tt || tt.eventId !== eventId) throw new NotFoundException('Ticket type not found for this event');
+
+    return this.prisma.ticketType.update({
+      where: { id: ticketTypeId },
+      data: { isSoldOut },
     });
   }
 
@@ -357,8 +409,25 @@ export class EventsService {
   }
 
   async rsvp(eventId: string, userId: string) {
-    // RSVP is equivalent to fetching a free ticket for internal events
     return this.fetchFreeTicket(eventId, userId);
+  }
+
+  async cancelRsvp(eventId: string, userId: string) {
+    const ticket = await this.prisma.ticket.findFirst({ where: { userId, eventId } });
+    if (!ticket) throw new NotFoundException('No ticket found for this event');
+    if (ticket.status === 'CHECKED_IN') {
+      throw new BadRequestException('Cannot cancel a ticket that has already been used');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.ticket.update({ where: { id: ticket.id }, data: { status: 'VOID' } });
+      await tx.ticketType.update({
+        where: { id: ticket.ticketTypeId },
+        data: { quantityRemaining: { increment: 1 }, isSoldOut: false },
+      });
+    });
+
+    return { message: 'RSVP cancelled and capacity restored' };
   }
 
   async fetchFreeTicket(eventId: string, userId: string) {
@@ -373,39 +442,43 @@ export class EventsService {
       throw new BadRequestException('Free tickets can only be fetched for internal events. External events redirect to ticket provider.');
     }
 
-    // Check if user already has a ticket
-    const existingTicket = await this.prisma.ticket.findFirst({
-      where: { eventId, userId }
-    });
-    if (existingTicket) throw new ConflictException('You already have a ticket for this event');
-
     // Find the first available free ticket type
     const freeTicketType = event.ticketTypes.find(tt => tt.price === 0 && tt.quantityRemaining > 0);
     if (!freeTicketType) throw new BadRequestException('No free tickets available for this event');
 
-    const code = crypto.randomUUID().replace(/-/g, '').toUpperCase();
-    const qrToken = crypto.randomUUID();
-
     const ticket = await this.prisma.$transaction(async (tx) => {
-      // Decrement remaining quantity
-      await tx.ticketType.update({
+      // Re-read inside transaction for consistent state
+      const freshType = await tx.ticketType.findUnique({ where: { id: freeTicketType.id } });
+      if (!freshType || freshType.isSoldOut || freshType.quantityRemaining <= 0) {
+        throw new BadRequestException('Tickets are sold out');
+      }
+
+      // Duplicate check inside transaction — DB @@unique([userId, eventId]) is the final guard
+      const existing = await tx.ticket.findFirst({ where: { userId, eventId } });
+      if (existing) throw new ConflictException('You already have a ticket for this event');
+
+      const updated = await tx.ticketType.update({
         where: { id: freeTicketType.id },
-        data: { quantityRemaining: { decrement: 1 } }
+        data: { quantityRemaining: { decrement: 1 } },
       });
+
+      if (updated.quantityRemaining === 0) {
+        await tx.ticketType.update({ where: { id: freeTicketType.id }, data: { isSoldOut: true } });
+      }
 
       return tx.ticket.create({
         data: {
           userId,
           eventId,
           ticketTypeId: freeTicketType.id,
-          code,
-          qrToken,
+          code: generateTicketCode(),
+          qrToken: generateQrToken(),
           status: 'ISSUED',
         },
         include: {
           event: { select: { title: true, startsAt: true, venueName: true } },
-          user: { select: { displayName: true, email: true } }
-        }
+          user: { select: { displayName: true, email: true } },
+        },
       });
     });
 
@@ -435,7 +508,7 @@ export class EventsService {
     }
 
     if (event.schoolId === requestingSchoolId) {
-      throw new Error('School cannot request connection to its own event');
+      throw new BadRequestException('School cannot request connection to its own event');
     }
 
     const existingRequest = await this.prisma.eventConnectionRequest.findFirst({
@@ -443,7 +516,7 @@ export class EventsService {
     });
 
     if (existingRequest) {
-      throw new Error(`Connection request already exists with status: ${existingRequest.status}`);
+      throw new BadRequestException(`Connection request already exists with status: ${existingRequest.status}`);
     }
 
     return this.prisma.eventConnectionRequest.create({

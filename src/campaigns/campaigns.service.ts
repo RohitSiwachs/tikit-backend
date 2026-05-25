@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 import { Expo } from 'expo-server-sdk';
@@ -45,15 +45,9 @@ export class CampaignsService {
   async triggerSend(id: string) {
     const campaign = await this.prisma.campaign.findUnique({ where: { id } });
     if (!campaign) throw new NotFoundException(`Campaign with ID ${id} not found`);
-    if (campaign.status === 'sent') throw new Error('Campaign already sent');
+    if (campaign.status === 'sent') throw new BadRequestException('Campaign already sent');
 
-    // Parse filters to find audience
-    let filters: any = {};
-    try {
-      filters = JSON.parse(campaign.segmentFilters);
-    } catch (e) {
-      // Default to empty object if invalid JSON
-    }
+    const filters: any = (campaign.segmentFilters as any) ?? {};
 
     const whereClause: any = {};
     if (filters.schoolId) whereClause.schoolId = filters.schoolId;
@@ -91,8 +85,8 @@ export class CampaignsService {
           return false;
         }
       } else {
-        // Mock send if credentials aren't set
-        console.log(`Mock sending SMS to ${phone}: ${message}`);
+        // Mock send if credentials aren't set — never log phone numbers
+        console.log('[dev] SMS mock send (set ELKS_USERNAME/PASSWORD to enable real delivery)');
         return true;
       }
     };

@@ -35,4 +35,9 @@ export class SendNotificationDto {
   @ApiProperty({ type: SegmentFiltersDto })
   @IsObject()
   segmentFilters: SegmentFiltersDto;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsObject()
+  data?: Record<string, unknown>;
 }
