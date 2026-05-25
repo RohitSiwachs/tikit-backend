@@ -8,8 +8,6 @@ node_modules
 /public/build
 
 # Environment and secrets
-.env
-.env.local
 .env.*.local
 
 # IDE and editors
@@ -44,3 +42,4 @@ yarn-error.log*
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+config.bat
