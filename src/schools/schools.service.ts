@@ -78,17 +78,10 @@ export class SchoolsService {
   }
 
   async update(id: string, updateSchoolDto: UpdateSchoolDto) {
+    const { schoolCode, ...updateData } = updateSchoolDto as any;
     return this.prisma.school.update({
       where: { id },
-      data: updateSchoolDto,
-    });
-  }
-
-  async regenerateCode(id: string) {
-    const newCode = `SKOL-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-    return this.prisma.school.update({
-      where: { id },
-      data: { schoolCode: newCode },
+      data: updateData,
     });
   }
 

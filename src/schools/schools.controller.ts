@@ -63,16 +63,6 @@ export class SchoolsController {
     return this.schoolsService.update(id, updateSchoolDto);
   }
 
-  @Patch(':id/regenerate-code')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Regenerate school code' })
-  regenerateCode(@Param('id') id: string, @Request() req: any) {
-    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
-      throw new ForbiddenException('You can only manage your own school');
-    }
-    return this.schoolsService.regenerateCode(id);
-  }
-
   @Post(':id/upload-students')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Upload list of students' })
