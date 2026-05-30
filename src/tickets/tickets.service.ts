@@ -2,10 +2,10 @@ import { Injectable, NotFoundException, BadRequestException, ConflictException }
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketStatus } from '../prisma-enums';
 import * as crypto from 'crypto';
+import { EmailsService } from '../emails/emails.service';
 
 export function generateQrToken(): string {
-  // Unified format: qr_ prefix + 32 random hex chars
-  // The qr_ prefix is checked by the scanner to distinguish tickets from card codes
+  // qr_ prefix lets the scanner distinguish tickets from card codes
   return `qr_${crypto.randomBytes(16).toString('hex')}`;
 }
 
@@ -15,7 +15,10 @@ export function generateTicketCode(): string {
 
 @Injectable()
 export class TicketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailsService: EmailsService,
+  ) {}
 
   async claimFreeTicket(userId: string, eventId: string, ticketTypeId: string) {
     if (!userId) throw new BadRequestException('User not authenticated');
@@ -26,22 +29,26 @@ export class TicketsService {
     if (ticketType.price > 0) throw new BadRequestException('This ticket is not free');
 
     const ticket = await this.prisma.$transaction(async (tx) => {
-      // Re-read inside transaction to get consistent state
-      const freshType = await tx.ticketType.findUnique({ where: { id: ticketTypeId } });
-      if (!freshType || freshType.isSoldOut || freshType.quantityRemaining <= 0) {
-        throw new BadRequestException('Tickets are sold out');
-      }
-
-      // Check duplicate inside transaction — relies on @@unique([userId, eventId]) constraint
       const existing = await tx.ticket.findFirst({ where: { userId, eventId } });
       if (existing) throw new ConflictException('You already have a ticket for this event');
 
-      const updated = await tx.ticketType.update({
-        where: { id: ticketTypeId },
+      // Atomic decrement: the WHERE quantityRemaining > 0 is evaluated and the update applied
+      // in a single DB round-trip, so concurrent claims cannot both pass the availability check.
+      const reserved = await tx.ticketType.updateMany({
+        where: { id: ticketTypeId, quantityRemaining: { gt: 0 }, isSoldOut: false },
         data: { quantityRemaining: { decrement: 1 } },
       });
 
-      if (updated.quantityRemaining === 0) {
+      if (reserved.count === 0) {
+        throw new BadRequestException('Tickets are sold out');
+      }
+
+      // Re-read to check if we just took the last ticket
+      const afterReserve = await tx.ticketType.findUnique({
+        where: { id: ticketTypeId },
+        select: { quantityRemaining: true },
+      });
+      if (afterReserve?.quantityRemaining === 0) {
         await tx.ticketType.update({ where: { id: ticketTypeId }, data: { isSoldOut: true } });
       }
 
@@ -57,18 +64,48 @@ export class TicketsService {
       });
     });
 
+    // Send receipt email in background — failure is logged but never blocks the response
+    this.findOne(ticket.id)
+      .then((populated) =>
+        this.emailsService
+          .sendTicketReceiptEmail(
+            populated.user.email,
+            populated.user.displayName,
+            populated.event.title,
+            populated.code,
+          )
+          .catch((err) => console.error('[TicketsService] Receipt email failed:', err)),
+      )
+      .catch((err) => console.error('[TicketsService] Failed to load ticket for email:', err));
+
     return ticket;
   }
 
   async voidTicket(id: string) {
-    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
-    if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
-    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket already voided');
-
-    return this.prisma.ticket.update({
+    const ticket = await this.prisma.ticket.findUnique({
       where: { id },
-      data: { status: TicketStatus.VOID },
+      select: { status: true, ticketTypeId: true },
     });
+    if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
+    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket is already voided');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.ticket.update({
+        where: { id },
+        data: { status: TicketStatus.VOID },
+      });
+
+      // Restore capacity only when the ticket was never used.
+      // A CHECKED_IN ticket has been consumed — restoring capacity would over-count.
+      if (ticket.status !== TicketStatus.CHECKED_IN) {
+        await tx.ticketType.update({
+          where: { id: ticket.ticketTypeId },
+          data: { quantityRemaining: { increment: 1 }, isSoldOut: false },
+        });
+      }
+    });
+
+    return { message: 'Ticket voided successfully' };
   }
 
   async cancelTicket(userId: string, eventId: string) {
@@ -89,14 +126,24 @@ export class TicketsService {
     return { message: 'Ticket cancelled and quantity restored' };
   }
 
+  async checkIn(id: string) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
+    if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
+    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket has been voided');
+    if (ticket.status === TicketStatus.CHECKED_IN) throw new BadRequestException('Ticket already checked in');
+
+    return this.prisma.ticket.update({
+      where: { id },
+      data: { status: TicketStatus.CHECKED_IN, checkedInAt: new Date() },
+    });
+  }
+
   async findOne(id: string) {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id },
       include: {
         user: {
-          select: {
-            id: true, displayName: true, email: true, avatarUrl: true, username: true,
-          },
+          select: { id: true, displayName: true, email: true, avatarUrl: true, username: true },
         },
         event: { select: { id: true, title: true, startsAt: true, venueName: true } },
         ticketType: { select: { id: true, name: true } },
@@ -107,7 +154,7 @@ export class TicketsService {
   }
 
   async findAll(eventId?: string, userId?: string) {
-    const where: any = {};
+    const where: { eventId?: string; userId?: string } = {};
     if (eventId) where.eventId = eventId;
     if (userId) where.userId = userId;
 
@@ -121,18 +168,6 @@ export class TicketsService {
         ticketType: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
-    });
-  }
-
-  async checkIn(id: string) {
-    const ticket = await this.prisma.ticket.findUnique({ where: { id } });
-    if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
-    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket has been voided');
-    if (ticket.status === TicketStatus.CHECKED_IN) throw new BadRequestException('Ticket already checked in');
-
-    return this.prisma.ticket.update({
-      where: { id },
-      data: { status: TicketStatus.CHECKED_IN, checkedInAt: new Date() },
     });
   }
 }

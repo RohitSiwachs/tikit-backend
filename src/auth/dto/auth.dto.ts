@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -65,6 +65,23 @@ export class VerifyOtpDto {
   @ApiProperty()
   @IsString()
   @MinLength(6)
+  @MaxLength(6)
   otpCode: string;
 }
 
+export class ForgotPasswordDto {
+  @ApiProperty()
+  @IsEmail()
+  email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty()
+  @IsString()
+  token: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(8)
+  newPassword: string;
+}

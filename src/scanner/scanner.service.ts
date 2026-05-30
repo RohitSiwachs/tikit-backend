@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TicketStatus } from '../prisma-enums';
 import { EventsGateway } from '../gateway/events.gateway';
 
 @Injectable()
@@ -12,12 +13,11 @@ export class ScannerService {
   async scan(qrToken: string, verifyOnly: boolean = false) {
     if (!qrToken) throw new BadRequestException('QR token is required');
 
-    // Tickets always use the qr_ prefix (enforced by generateQrToken())
+    // Tickets use the qr_ prefix (enforced by generateQrToken())
     if (qrToken.startsWith('qr_')) {
       return this.scanTicket(qrToken, verifyOnly);
     }
 
-    // Anything else is treated as a card activation code
     return this.scanCard(qrToken);
   }
 
@@ -42,61 +42,83 @@ export class ScannerService {
     });
 
     if (!ticket) throw new NotFoundException('Invalid QR code — ticket not found');
+    if (ticket.event.isCancelled) throw new BadRequestException('This event has been cancelled');
+    if (new Date() > ticket.event.endsAt) throw new BadRequestException('This event has already ended');
+    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('This ticket has been voided');
 
-    if (ticket.event.isCancelled) {
-      throw new BadRequestException('This event has been cancelled');
+    if (verifyOnly) {
+      if (ticket.status === TicketStatus.CHECKED_IN) {
+        throw new BadRequestException(`Ticket already checked in at ${ticket.checkedInAt}`);
+      }
+      const stats = await this.getEventStats(ticket.eventId);
+      return this.buildTicketResponse('Ticket is valid', ticket, ticket.status, ticket.checkedInAt, stats);
     }
 
-    if (new Date() > ticket.event.endsAt) {
-      throw new BadRequestException('This event has already ended');
+    if (ticket.status === TicketStatus.CHECKED_IN) {
+      throw new BadRequestException(`Ticket already checked in at ${ticket.checkedInAt}`);
     }
 
-    if (ticket.status === 'VOID') {
-      throw new BadRequestException('This ticket has been voided');
-    }
+    // Atomic conditional update — the WHERE status = 'ISSUED' clause is the race guard.
+    // PostgreSQL row-level locking ensures exactly one concurrent call wins this update.
+    // If two scans arrive simultaneously, one gets count=1 and the other gets count=0.
+    const result = await this.prisma.ticket.updateMany({
+      where: { id: ticket.id, status: TicketStatus.ISSUED },
+      data: { status: TicketStatus.CHECKED_IN, checkedInAt: new Date() },
+    });
 
-    if (ticket.status === 'CHECKED_IN' && !verifyOnly) {
-      throw new BadRequestException(`Ticket already used at ${ticket.checkedInAt}`);
-    }
-
-    let finalStatus = ticket.status;
-    let checkedInAt = ticket.checkedInAt;
-    let eventStats: Awaited<ReturnType<typeof this.getEventStats>> | null = null;
-
-    if (!verifyOnly && ticket.status !== 'CHECKED_IN') {
-      const updated = await this.prisma.ticket.update({
+    if (result.count === 0) {
+      // Another scan beat us to this ticket within the same request window
+      const current = await this.prisma.ticket.findUnique({
         where: { id: ticket.id },
-        data: { status: 'CHECKED_IN', checkedInAt: new Date() },
+        select: { checkedInAt: true },
       });
-      finalStatus = updated.status;
-      checkedInAt = updated.checkedInAt;
-
-      // Fetch stats once and reuse for both broadcast and response
-      eventStats = await this.getEventStats(ticket.eventId);
-      this.eventsGateway.emitCheckinUpdate(ticket.eventId, {
-        userId: ticket.user.id,
-        userName: ticket.user.displayName,
-        ticketType: ticket.ticketType?.name ?? 'Standard',
-        checkedInAt,
-        totalCheckins: eventStats.scannedCount,
-      });
+      throw new BadRequestException(
+        `Ticket was just checked in at ${current?.checkedInAt?.toISOString() ?? 'unknown'}`,
+      );
     }
 
-    // Only fetch if not already fetched above (verify-only path)
-    if (!eventStats) {
-      eventStats = await this.getEventStats(ticket.eventId);
-    }
+    // Re-read the updated record so checkedInAt reflects the actual DB timestamp
+    const updated = await this.prisma.ticket.findUnique({
+      where: { id: ticket.id },
+      select: { status: true, checkedInAt: true },
+    });
 
+    const eventStats = await this.getEventStats(ticket.eventId);
+
+    this.eventsGateway.emitCheckinUpdate(ticket.eventId, {
+      userId: ticket.user.id,
+      userName: ticket.user.displayName,
+      ticketType: ticket.ticketType?.name ?? 'Standard',
+      checkedInAt: updated!.checkedInAt,
+      totalCheckins: eventStats.scannedCount,
+    });
+
+    return this.buildTicketResponse(
+      'Check-in successful',
+      ticket,
+      updated!.status,
+      updated!.checkedInAt,
+      eventStats,
+    );
+  }
+
+  private buildTicketResponse(
+    message: string,
+    ticket: any,
+    status: string,
+    checkedInAt: Date | null,
+    stats: Awaited<ReturnType<typeof this.getEventStats>>,
+  ) {
     return {
       type: 'TICKET',
-      message: verifyOnly ? 'Ticket is valid' : 'Check-in successful',
-      isCheckedIn: finalStatus === 'CHECKED_IN',
+      message,
+      isCheckedIn: status === TicketStatus.CHECKED_IN,
       checkedInAt,
-      ticket: { id: ticket.id, code: ticket.code, status: finalStatus },
+      ticket: { id: ticket.id, code: ticket.code, status },
       user: ticket.user,
       event: { id: ticket.event.id, title: ticket.event.title },
       ticketType: { name: ticket.ticketType?.name ?? 'Standard' },
-      stats: eventStats,
+      stats,
     };
   }
 
@@ -115,18 +137,9 @@ export class ScannerService {
     });
 
     if (!cardCode) throw new NotFoundException('Invalid card code — not found');
-
-    if (cardCode.card.status === 'blocked') {
-      throw new BadRequestException('This card has been blocked');
-    }
-
-    if (cardCode.card.status === 'paused') {
-      throw new BadRequestException('This card is currently paused');
-    }
-
-    if (new Date() > cardCode.card.validUntil) {
-      throw new BadRequestException('This card has expired');
-    }
+    if (cardCode.card.status === 'blocked') throw new BadRequestException('This card has been blocked');
+    if (cardCode.card.status === 'paused') throw new BadRequestException('This card is currently paused');
+    if (new Date() > cardCode.card.validUntil) throw new BadRequestException('This card has expired');
 
     return {
       type: 'CARD',
@@ -144,8 +157,8 @@ export class ScannerService {
 
   async getEventStats(eventId: string) {
     const [totalTickets, scannedTickets] = await Promise.all([
-      this.prisma.ticket.count({ where: { eventId, status: { not: 'VOID' } } }),
-      this.prisma.ticket.count({ where: { eventId, status: 'CHECKED_IN' } }),
+      this.prisma.ticket.count({ where: { eventId, status: { not: TicketStatus.VOID } } }),
+      this.prisma.ticket.count({ where: { eventId, status: TicketStatus.CHECKED_IN } }),
     ]);
 
     return {

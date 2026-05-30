@@ -49,6 +49,11 @@ export class CreateSchoolDto {
   @IsEmail()
   contactEmail?: string;
 
+  @ApiProperty({ required: false, description: 'Password for the initial school admin (created if contactEmail is also provided)' })
+  @IsOptional()
+  @IsString()
+  schoolAdminPassword?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()

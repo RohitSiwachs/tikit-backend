@@ -3,7 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { databaseConfig, jwtConfig, s3Config } from './config/index';
+import { databaseConfig, jwtConfig, s3Config, resendConfig } from './config/index';
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -27,6 +27,7 @@ import { WalletModule } from './wallet/wallet.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { UploadModule } from './upload/upload.module';
 import { VouchersModule } from './vouchers/vouchers.module';
+import { EmailsModule } from './emails/emails.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -34,7 +35,7 @@ import { AppController } from './app.controller';
     // ─── Global Config ─────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, s3Config],
+      load: [databaseConfig, jwtConfig, s3Config, resendConfig],
       envFilePath: '.env',
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
@@ -71,6 +72,7 @@ import { AppController } from './app.controller';
     GatewayModule,
     UploadModule,
     VouchersModule,
+    EmailsModule,
   ],
   controllers: [AppController],
   providers: [

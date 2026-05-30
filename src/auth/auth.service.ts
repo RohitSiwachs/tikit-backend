@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -12,10 +13,15 @@ import {
   SendOtpDto,
   VerifyOtpDto,
   VerifySchoolDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
 } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import { EmailsService } from '../emails/emails.service';
 
+// Fields safe to return in API responses — expoPushToken is intentionally excluded
+// (device identifiers should never be echoed back to clients)
 const SAFE_USER_SELECT = {
   id: true,
   email: true,
@@ -32,7 +38,6 @@ const SAFE_USER_SELECT = {
   lastName: true,
   biography: true,
   interests: true,
-  expoPushToken: true,
   notifPush: true,
   notifEmail: true,
   notifSms: true,
@@ -47,28 +52,41 @@ const SAFE_USER_SELECT = {
   createdAt: true,
 };
 
+const MAX_FAILED_LOGINS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const OTP_COOLDOWN_MS = 60 * 1000;           // 60 seconds between OTP sends
+const MAX_OTP_ATTEMPTS = 5;
+const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private config: ConfigService,
+    private emailsService: EmailsService,
   ) {}
 
-  private buildTokenPayload(user: { id: string; email: string; role: string; schoolId: string | null }) {
-    return {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      schoolId: user.schoolId,
-    };
+  private buildTokenPayload(user: {
+    id: string;
+    email: string;
+    role: string;
+    schoolId: string | null;
+  }) {
+    return { sub: user.id, email: user.email, role: user.role, schoolId: user.schoolId };
   }
 
-  private async issueTokenPair(userId: string, email: string, role: string, schoolId: string | null) {
+  private async issueTokenPair(
+    userId: string,
+    email: string,
+    role: string,
+    schoolId: string | null,
+  ) {
     const payload = this.buildTokenPayload({ id: userId, email, role, schoolId });
     const accessToken = this.jwtService.sign(payload);
 
-    // Refresh token — opaque random string stored in DB
     const rawRefreshToken = crypto.randomBytes(40).toString('hex');
     const refreshExpiryDays = parseInt(
       this.config.get<string>('JWT_REFRESH_EXPIRATION_DAYS') || '30',
@@ -86,16 +104,48 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
-      include: { school: { select: { id: true, name: true, city: true, logoUrl: true } } },
+      include: {
+        school: { select: { id: true, name: true, city: true, logoUrl: true } },
+      },
     });
 
     if (!user || user.deletedAt) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if account is temporarily locked
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const waitMins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
+      throw new UnauthorizedException(
+        `Account locked. Try again in ${waitMins} minute(s).`,
+      );
+    }
+
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
+
     if (!passwordMatch) {
+      const newCount = (user.failedLoginCount ?? 0) + 1;
+      const shouldLock = newCount >= MAX_FAILED_LOGINS;
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginCount: newCount,
+          ...(shouldLock
+            ? { lockedUntil: new Date(Date.now() + LOCKOUT_DURATION_MS) }
+            : {}),
+        },
+      });
+
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Successful login — reset failure counters
+    if (user.failedLoginCount > 0 || user.lockedUntil) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginCount: 0, lockedUntil: null },
+      });
     }
 
     const tokens = await this.issueTokenPair(user.id, user.email, user.role, user.schoolId);
@@ -142,13 +192,21 @@ export class AuthService {
       select: SAFE_USER_SELECT,
     });
 
+    this.emailsService.sendWelcomeEmail(user.email, user.displayName).catch((err) => {
+      this.logger.error('Failed to send welcome email', err.stack);
+    });
+
     return user;
   }
 
   async refresh(rawRefreshToken: string) {
     const stored = await this.prisma.refreshToken.findUnique({
       where: { token: rawRefreshToken },
-      include: { user: { select: { id: true, email: true, role: true, schoolId: true, deletedAt: true } } },
+      include: {
+        user: {
+          select: { id: true, email: true, role: true, schoolId: true, deletedAt: true },
+        },
+      },
     });
 
     if (!stored || stored.revokedAt || stored.expiresAt < new Date()) {
@@ -159,7 +217,7 @@ export class AuthService {
       throw new UnauthorizedException('Account no longer exists');
     }
 
-    // Rotate — revoke old, issue new pair
+    // Rotate: revoke old token, issue a fresh pair
     await this.prisma.refreshToken.update({
       where: { id: stored.id },
       data: { revokedAt: new Date() },
@@ -202,9 +260,20 @@ export class AuthService {
   }
 
   async sendOtp(dto: SendOtpDto) {
-    // Non-enumerable error — don't reveal whether userId exists
     let user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
     if (!user) throw new BadRequestException('OTP request failed');
+    if (user.isVerified) throw new BadRequestException('User already verified');
+
+    // Enforce 60-second cooldown between OTP sends per userId to prevent SMS bombing
+    if (user.otpSentAt) {
+      const elapsed = Date.now() - user.otpSentAt.getTime();
+      if (elapsed < OTP_COOLDOWN_MS) {
+        const waitSecs = Math.ceil((OTP_COOLDOWN_MS - elapsed) / 1000);
+        throw new BadRequestException(
+          `Please wait ${waitSecs} second(s) before requesting another OTP`,
+        );
+      }
+    }
 
     if (dto.phone) {
       user = await this.prisma.user.update({
@@ -213,16 +282,18 @@ export class AuthService {
       });
     }
 
-    if (user.isVerified) throw new BadRequestException('User already verified');
-
     const otpPlain = crypto.randomInt(100000, 999999).toString();
-    // Store as bcrypt hash — never persist plaintext OTP
     const otpHash = await bcrypt.hash(otpPlain, 10);
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { otpCode: otpHash, otpExpiresAt },
+      data: {
+        otpCode: otpHash,
+        otpExpiresAt,
+        otpSentAt: new Date(),
+        otpAttempts: 0, // Reset attempts when a new OTP is issued
+      },
     });
 
     const elksUsername = process.env.ELKS_USERNAME;
@@ -238,22 +309,21 @@ export class AuthService {
         });
         const response = await fetch('https://api.46elks.com/a1/SMS', {
           method: 'POST',
-          headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
           body,
         });
         if (!response.ok) {
-          console.error('[46elks] SMS send failed:', await response.text());
+          this.logger.error(`46elks SMS failed: ${await response.text()}`);
         }
       } catch (err) {
-        console.error('[46elks] Error:', err);
+        this.logger.error('46elks error', err.stack);
       }
-    } else {
-      // Development-only fallback — never logs actual OTP to avoid leaking to logs
-      console.log(`[Dev] OTP generated for userId ${user.id} — check console only in local dev`);
-      // In CI/dev environments the OTP is logged intentionally:
-      if (process.env.NODE_ENV !== 'production') {
-        console.log(`[Dev OTP] ${otpPlain}`);
-      }
+    } else if (process.env.NODE_ENV !== 'production') {
+      // Development only — log OTP to console for testing
+      this.logger.debug(`[Dev OTP] userId=${user.id} code=${otpPlain}`);
     }
 
     return { message: 'OTP sent successfully' };
@@ -265,17 +335,106 @@ export class AuthService {
     if (user.isVerified) throw new BadRequestException('User already verified');
     if (!user.otpCode) throw new BadRequestException('No OTP requested');
     if (user.otpExpiresAt && user.otpExpiresAt < new Date()) {
-      throw new BadRequestException('OTP expired');
+      throw new BadRequestException('OTP expired — request a new one');
+    }
+
+    // Brute-force protection: max 5 attempts per OTP
+    if ((user.otpAttempts ?? 0) >= MAX_OTP_ATTEMPTS) {
+      // Invalidate the current OTP — user must request a new one
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
+      });
+      throw new BadRequestException('Too many failed attempts — please request a new OTP');
     }
 
     const otpMatch = await bcrypt.compare(dto.otpCode, user.otpCode);
-    if (!otpMatch) throw new BadRequestException('Invalid OTP');
+
+    if (!otpMatch) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { otpAttempts: { increment: 1 } },
+      });
+      throw new BadRequestException('Invalid OTP');
+    }
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { isVerified: true, otpCode: null, otpExpiresAt: null },
+      data: { isVerified: true, otpCode: null, otpExpiresAt: null, otpAttempts: 0, otpSentAt: null },
     });
 
     return { message: 'Phone verified successfully' };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
+    // Constant-time response regardless of whether the email exists — prevents enumeration
+    const RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: { id: true, displayName: true, deletedAt: true },
+    });
+
+    if (!user || user.deletedAt) return RESPONSE;
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    // Store only the SHA-256 hash — the raw token is only ever in the email link
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: new Date(Date.now() + PASSWORD_RESET_EXPIRY_MS),
+      },
+    });
+
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+
+    // Fire-and-forget — timing must not reveal whether the email exists
+    this.emailsService
+      .sendPasswordResetEmail(dto.email, user.displayName, resetUrl)
+      .catch((err) => this.logger.error('Password reset email failed', err.stack));
+
+    return RESPONSE;
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const tokenHash = crypto.createHash('sha256').update(dto.token).digest('hex');
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: tokenHash,
+        passwordResetExpiry: { gt: new Date() },
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (!user) throw new BadRequestException('Invalid or expired reset token');
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+
+    // Use a transaction: update password and revoke all sessions atomically
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          passwordResetToken: null,
+          passwordResetExpiry: null,
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return { message: 'Password reset successfully. Please log in again.' };
   }
 }

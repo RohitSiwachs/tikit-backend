@@ -50,6 +50,36 @@ async function main() {
   console.log('\n🚀 Login credentials:');
   console.log('   Email    : admin@gmail.com');
   console.log('   Password : admin@123');
+
+  // 3. Create / update the School Admin with new credentials
+  const hashedSchoolAdminPassword = await bcrypt.hash('schooladmin', 10);
+
+  const schoolAdmin = await prisma.user.upsert({
+    where: { email: 'schooladmin@gmail.com' },
+    update: {
+      password: hashedSchoolAdminPassword,
+      role: 'KARORDFORANDE',
+      accountStatus: 'ACTIVE',
+      isVerified: true,
+      approvalStatus: 'approved',
+    },
+    create: {
+      email: 'schooladmin@gmail.com',
+      displayName: 'School Admin',
+      username: 'school_admin',
+      password: hashedSchoolAdminPassword,
+      role: 'KARORDFORANDE',
+      accountStatus: 'ACTIVE',
+      schoolId: school.id,
+      isVerified: true,
+      approvalStatus: 'approved',
+    },
+  });
+
+  console.log(`\n✅ School Admin User ready: ${schoolAdmin.email}`);
+  console.log('\n🚀 Login credentials:');
+  console.log('   Email    : schooladmin@gmail.com');
+  console.log('   Password : schooladmin');
 }
 
 main()
@@ -60,3 +90,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

@@ -13,7 +13,21 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRATION: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRATION_DAYS: Joi.number().default(30),
 
-  // AWS S3 (Optional - allows boot even without S3 credentials configured)
+  // CORS — required in production; multiple origins comma-separated
+  CORS_ORIGIN: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('http://localhost:3001'),
+  }),
+
+  // Frontend URL for password reset links
+  FRONTEND_URL: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional().default('http://localhost:3001'),
+  }),
+
+  // AWS S3 (optional — allows boot without S3 credentials)
   AWS_REGION: Joi.string().optional().default('eu-north-1'),
   AWS_ACCESS_KEY_ID: Joi.string().optional().allow(''),
   AWS_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
@@ -22,4 +36,7 @@ export const envValidationSchema = Joi.object({
   // 46elks SMS (optional — falls back to mock in dev)
   ELKS_USERNAME: Joi.string().optional(),
   ELKS_PASSWORD: Joi.string().optional(),
+
+  // Resend Email (optional — falls back to console logger in dev)
+  RESEND_API_KEY: Joi.string().optional().allow(''),
 });

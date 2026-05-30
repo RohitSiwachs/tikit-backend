@@ -12,31 +12,32 @@ export class CampaignScheduler {
     private readonly prisma: PrismaService,
   ) {}
 
-  // Runs every minute to check for due scheduled campaigns
   @Cron(CronExpression.EVERY_MINUTE)
   async handleScheduledCampaigns() {
     const now = new Date();
 
+    // Only pick up campaigns in 'scheduled' status that are due.
+    // 'processing' means already running (possibly on another instance — Phase 4 adds distributed lock).
+    // 'failed' means it needs manual review before retrying.
     const dueCampaigns = await this.prisma.campaign.findMany({
       where: {
         status: 'scheduled',
-        scheduledAt: {
-          lte: now, // scheduledAt is in the past or now
-        },
+        scheduledAt: { lte: now },
       },
+      select: { id: true, title: true },
     });
 
     if (dueCampaigns.length === 0) return;
 
-    this.logger.log(`Found ${dueCampaigns.length} scheduled campaign(s) to send`);
+    this.logger.log(`Scheduler: ${dueCampaigns.length} campaign(s) due`);
 
     for (const campaign of dueCampaigns) {
       try {
-        this.logger.log(`Triggering campaign: ${campaign.id} — "${campaign.title}"`);
         await this.campaignsService.triggerSend(campaign.id);
-        this.logger.log(`Campaign ${campaign.id} sent successfully`);
+        this.logger.log(`Scheduler: triggered campaign "${campaign.title}" (${campaign.id})`);
       } catch (err) {
-        this.logger.error(`Failed to send campaign ${campaign.id}: ${err.message}`);
+        // triggerSend throws if the campaign is already processing — that's fine
+        this.logger.error(`Scheduler: failed to trigger campaign ${campaign.id}: ${err.message}`);
       }
     }
   }

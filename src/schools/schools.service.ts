@@ -10,8 +10,35 @@ export class SchoolsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createSchoolDto: CreateSchoolDto) {
-    return this.prisma.school.create({
-      data: createSchoolDto,
+    const { schoolAdminPassword, ...schoolData } = createSchoolDto as any;
+
+    return this.prisma.$transaction(async (tx) => {
+      const school = await tx.school.create({
+        data: schoolData,
+      });
+
+      if (schoolData.contactEmail && schoolAdminPassword) {
+        const hashedPassword = await bcrypt.hash(schoolAdminPassword, 12);
+        
+        const usernameBase = schoolData.contactEmail.split('@')[0];
+        const uniqueSuffix = crypto.randomBytes(2).toString('hex');
+        
+        await tx.user.create({
+          data: {
+            email: schoolData.contactEmail,
+            username: `${usernameBase}_${uniqueSuffix}`,
+            displayName: `${schoolData.name} Admin`,
+            password: hashedPassword,
+            role: 'KARORDFORANDE',
+            accountStatus: 'ACTIVE',
+            schoolId: school.id,
+            isVerified: true,
+            approvalStatus: 'approved',
+          }
+        });
+      }
+
+      return school;
     });
   }
 

@@ -3,108 +3,117 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model School {
-  id            String   @id @default(uuid())
-  name          String
-  slug          String   @unique
-  city          String
-  description   String?
-  logoUrl       String?
-  coverUrl      String?
-  websiteUrl    String?
-  schoolCode    String   @unique
-  isVerified    Boolean  @default(false)
-  isActive      Boolean  @default(true)
-  contactEmail  String?
-  contactPhone  String?
-  address       String?
-  users         User[]
-  events        Event[]
-  connectedEvents Event[] @relation("EventConnectedSchools")
-  cards         Card[]
-  posts         Post[]
-  classes       Class[]
+  id                 String                   @id @default(uuid())
+  name               String
+  slug               String                   @unique
+  city               String
+  description        String?
+  logoUrl            String?
+  coverUrl           String?
+  websiteUrl         String?
+  schoolCode         String                   @unique
+  isVerified         Boolean                  @default(false)
+  isActive           Boolean                  @default(true)
+  contactEmail       String?
+  contactPhone       String?
+  address            String?
+  users              User[]
+  events             Event[]
+  connectedEvents    Event[]                  @relation("EventConnectedSchools")
+  cards              Card[]
+  posts              Post[]
+  classes            Class[]
   connectionRequests EventConnectionRequest[]
-  createdAt     DateTime @default(now())
+  createdAt          DateTime                 @default(now())
 
   @@index([isActive])
   @@index([city])
 }
 
 model User {
-  id              String        @id @default(uuid())
-  email           String        @unique
-  displayName     String
-  username        String        @unique
-  password        String
-  phone           String?
-  role            String        @default("STUDENT")
-  accountStatus   String        @default("ACTIVE")
-  schoolId        String?
-  school          School?       @relation(fields: [schoolId], references: [id])
-  className       String?
-  age             Int?
-  avatarUrl       String?
-  isVerified      Boolean       @default(false)
-  otpCode         String?       // stored as bcrypt hash in production
-  otpExpiresAt    DateTime?
-  approvalStatus  String        @default("pending")
-  cardStatus      String        @default("inactive")
-  marketingConsent Boolean      @default(false)
+  id               String    @id @default(uuid())
+  email            String    @unique
+  displayName      String
+  username         String    @unique
+  password         String
+  phone            String?
+  role             String    @default("STUDENT")
+  accountStatus    String    @default("ACTIVE")
+  schoolId         String?
+  school           School?   @relation(fields: [schoolId], references: [id])
+  className        String?
+  age              Int?
+  avatarUrl        String?
+  isVerified       Boolean   @default(false)
+  otpCode          String? // stored as bcrypt hash in production
+  otpExpiresAt     DateTime?
+  approvalStatus   String    @default("pending")
+  cardStatus       String    @default("inactive")
+  marketingConsent Boolean   @default(false)
 
-  firstName       String?
-  lastName        String?
-  gender          String?
-  birthdate       DateTime?
-  interests       String[]
-  goingOutFrequency String?
+  firstName          String?
+  lastName           String?
+  gender             String?
+  birthdate          DateTime?
+  interests          String[]
+  goingOutFrequency  String?
   preferredGroupSize String?
-  eventBudget     String?
+  eventBudget        String?
 
-  biography       String?
-  achievements    String[]
-  socialLinks     Json?
-  isVisibleToOtherSchools Boolean @default(false)
-  isPrivateAccount        Boolean @default(false)
-  expoPushToken   String?
+  biography               String?
+  achievements            String[]
+  socialLinks             Json?
+  isVisibleToOtherSchools Boolean  @default(false)
+  isPrivateAccount        Boolean  @default(false)
+  expoPushToken           String?
 
-  notifPush       Boolean @default(true)
-  notifEmail      Boolean @default(true)
-  notifSms        Boolean @default(false)
+  notifPush           Boolean @default(true)
+  notifEmail          Boolean @default(true)
+  notifSms            Boolean @default(false)
   notifFriendRequests Boolean @default(true)
   notifNewPosts       Boolean @default(true)
   notifEventInvites   Boolean @default(true)
   notifTicketReceipts Boolean @default(true)
 
-  partnerConsent  Boolean @default(false)
-  theme           String  @default("system")
-  language        String  @default("sv")
+  partnerConsent Boolean @default(false)
+  theme          String  @default("system")
+  language       String  @default("sv")
+
+  // Auth security
+  failedLoginCount    Int       @default(0)
+  lockedUntil         DateTime?
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+  otpSentAt           DateTime?
+  otpAttempts         Int       @default(0)
 
   // Soft delete
-  deletedAt       DateTime?
+  deletedAt DateTime?
 
-  followers       User[] @relation("UserFollows")
-  following       User[] @relation("UserFollows")
-  friends         User[] @relation("UserFriends")
-  friendOf        User[] @relation("UserFriends")
+  followers User[] @relation("UserFollows")
+  following User[] @relation("UserFollows")
+  friends   User[] @relation("UserFriends")
+  friendOf  User[] @relation("UserFriends")
 
   sentFollowRequests     FollowRequest[] @relation("SentFollowRequests")
   receivedFollowRequests FollowRequest[] @relation("ReceivedFollowRequests")
 
-  tickets         Ticket[]
-  posts           Post[]
-  cardCodes       CardCode[]
-  eventLikes      EventLike[]
-  eventComments   EventComment[]
-  refreshTokens   RefreshToken[]
-  vouchers        Voucher[]
-  postLikes       PostLike[]
-  postComments    PostComment[]
-  createdAt       DateTime      @default(now())
+  tickets       Ticket[]
+  posts         Post[]
+  cardCodes     CardCode[]
+  eventLikes    EventLike[]
+  eventComments EventComment[]
+  refreshTokens RefreshToken[]
+  vouchers      Voucher[]
+  postLikes     PostLike[]
+  postComments  PostComment[]
+  createdAt     DateTime       @default(now())
 
   @@index([schoolId])
   @@index([role])
@@ -113,56 +122,56 @@ model User {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@index([token])
 }
 
 model Event {
-  id                  String      @id @default(uuid())
-  title               String
-  description         String?
-  coverUrl            String?
-  eventType           String      @default("INTERNAL")
-  schoolId            String
-  school              School      @relation(fields: [schoolId], references: [id])
-  venueName           String?
-  venueAddress        String?
-  startsAt            DateTime
-  endsAt              DateTime
-  ageLimit            Int?
-  externalBuyUrl      String?
-  externalTicketStatus String?    @default("IN_STOCK")
-  status              String      @default("draft")
-  isPinned            Boolean     @default(false)
-  isPublished         Boolean     @default(false)
-  isCancelled         Boolean     @default(false)
+  id                   String   @id @default(uuid())
+  title                String
+  description          String?
+  coverUrl             String?
+  eventType            String   @default("INTERNAL")
+  schoolId             String
+  school               School   @relation(fields: [schoolId], references: [id])
+  venueName            String?
+  venueAddress         String?
+  startsAt             DateTime
+  endsAt               DateTime
+  ageLimit             Int?
+  externalBuyUrl       String?
+  externalTicketStatus String?  @default("IN_STOCK")
+  status               String   @default("draft")
+  isPinned             Boolean  @default(false)
+  isPublished          Boolean  @default(false)
+  isCancelled          Boolean  @default(false)
 
-  sortOrder            Int         @default(1)
-  showImGoingButton    Boolean     @default(true)
-  attendanceVisibility String      @default("school")
+  sortOrder            Int      @default(1)
+  showImGoingButton    Boolean  @default(true)
+  attendanceVisibility String   @default("school")
   externalPriceDisplay String?
-  linkedCardIds        String[]    @default([])
+  linkedCardIds        String[] @default([])
 
   // Soft delete
-  deletedAt           DateTime?
+  deletedAt DateTime?
 
-  connectedSchools    School[]    @relation("EventConnectedSchools")
-  ticketTypes         TicketType[]
-  tickets             Ticket[]
-  posts               Post[]
-  likes               EventLike[]
-  comments            EventComment[]
-  connectionRequests  EventConnectionRequest[]
-  vouchers            Voucher[]
-  createdAt           DateTime    @default(now())
+  connectedSchools   School[]                 @relation("EventConnectedSchools")
+  ticketTypes        TicketType[]
+  tickets            Ticket[]
+  posts              Post[]
+  likes              EventLike[]
+  comments           EventComment[]
+  connectionRequests EventConnectionRequest[]
+  vouchers           Voucher[]
+  createdAt          DateTime                 @default(now())
 
   @@index([schoolId])
   @@index([isPublished])
@@ -171,40 +180,40 @@ model Event {
 }
 
 model TicketType {
-  id                String   @id @default(uuid())
+  id                String  @id @default(uuid())
   eventId           String
-  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event             Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name              String
   description       String?
   price             Int
   quantityTotal     Int
   quantityRemaining Int
-  fewLeftThreshold  Int?     @default(10)
-  isSoldOut         Boolean  @default(false)
+  fewLeftThreshold  Int?    @default(10)
+  isSoldOut         Boolean @default(false)
 
-  coverUrl          String?
-  sortOrder         Int      @default(1)
-  priceDisplay      String   @default("Free")
-  deepLink          String?
-  tickets           Ticket[]
-  vouchers          Voucher[]
+  coverUrl     String?
+  sortOrder    Int       @default(1)
+  priceDisplay String    @default("Free")
+  deepLink     String?
+  tickets      Ticket[]
+  vouchers     Voucher[]
 
   @@index([eventId])
 }
 
 model Ticket {
-  id           String       @id @default(uuid())
+  id           String     @id @default(uuid())
   userId       String
-  user         User         @relation(fields: [userId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
   eventId      String
-  event        Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   ticketTypeId String
-  ticketType   TicketType   @relation(fields: [ticketTypeId], references: [id])
-  code         String       @unique
-  qrToken      String       @unique
-  status       String       @default("ISSUED")
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  code         String     @unique
+  qrToken      String     @unique
+  status       String     @default("ISSUED")
   checkedInAt  DateTime?
-  createdAt    DateTime     @default(now())
+  createdAt    DateTime   @default(now())
 
   // Prevent duplicate tickets per user per event
   @@unique([userId, eventId])
@@ -214,20 +223,20 @@ model Ticket {
 }
 
 model Voucher {
-  id             String      @id @default(uuid())
-  code           String      @unique
-  eventId        String
-  event          Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  ticketTypeId   String
-  ticketType     TicketType  @relation(fields: [ticketTypeId], references: [id])
-  createdById    String
-  createdBy      User        @relation(fields: [createdById], references: [id])
-  assignedToId   String?
-  redeemedById   String?
-  redeemedAt     DateTime?
-  expiresAt      DateTime?
-  isUsed         Boolean     @default(false)
-  createdAt      DateTime    @default(now())
+  id           String     @id @default(uuid())
+  code         String     @unique
+  eventId      String
+  event        Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticketTypeId String
+  ticketType   TicketType @relation(fields: [ticketTypeId], references: [id])
+  createdById  String
+  createdBy    User       @relation(fields: [createdById], references: [id])
+  assignedToId String?
+  redeemedById String?
+  redeemedAt   DateTime?
+  expiresAt    DateTime?
+  isUsed       Boolean    @default(false)
+  createdAt    DateTime   @default(now())
 
   @@index([eventId])
   @@index([code])
@@ -235,41 +244,41 @@ model Voucher {
 }
 
 model Card {
-  id                 String   @id @default(uuid())
+  id                 String     @id @default(uuid())
   title              String
   schoolId           String
-  school             School   @relation(fields: [schoolId], references: [id])
+  school             School     @relation(fields: [schoolId], references: [id])
   coverUrl           String?
   description        String?
   benefits           String[]
   validFrom          DateTime
   validUntil         DateTime
-  status             String   @default("draft")
-  codeGenerationType String   @default("individual")
+  status             String     @default("draft")
+  codeGenerationType String     @default("individual")
   codes              CardCode[]
-  createdAt          DateTime @default(now())
+  createdAt          DateTime   @default(now())
 
   @@index([schoolId])
   @@index([status])
 }
 
 model Post {
-  id          String   @id @default(uuid())
-  body        String
-  imageUrl    String?
-  postType    String   @default("text")
-  schoolId    String
-  school      School   @relation(fields: [schoolId], references: [id])
-  authorId    String
-  author      User     @relation(fields: [authorId], references: [id])
-  eventId     String?
-  event       Event?   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  likes       PostLike[]
-  comments    PostComment[]
+  id       String        @id @default(uuid())
+  body     String
+  imageUrl String?
+  postType String        @default("text")
+  schoolId String
+  school   School        @relation(fields: [schoolId], references: [id])
+  authorId String
+  author   User          @relation(fields: [authorId], references: [id])
+  eventId  String?
+  event    Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  likes    PostLike[]
+  comments PostComment[]
 
   // Soft delete
-  deletedAt   DateTime?
-  createdAt   DateTime @default(now())
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([schoolId])
   @@index([deletedAt])
@@ -299,15 +308,15 @@ model PostComment {
 }
 
 model CardCode {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   cardId    String
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  code      String   @unique
-  isUsed    Boolean  @default(false)
+  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  code      String    @unique
+  isUsed    Boolean   @default(false)
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
+  user      User?     @relation(fields: [userId], references: [id])
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([cardId])
   @@index([userId])
@@ -328,7 +337,7 @@ model Class {
 model Segment {
   id             String   @id @default(uuid())
   name           String
-  filters        Json     // Changed from String to Json
+  filters        Json // Changed from String to Json
   estimatedCount Int      @default(0)
   createdAt      DateTime @default(now())
 }
@@ -336,7 +345,7 @@ model Segment {
 model Campaign {
   id             String    @id @default(uuid())
   channel        String
-  segmentFilters Json      // Changed from String to Json
+  segmentFilters Json // Changed from String to Json
   title          String
   body           String
   sendMode       String
@@ -363,13 +372,13 @@ model EventConnectionRequest {
 }
 
 model FollowRequest {
-  id          String   @id @default(uuid())
-  senderId    String
-  sender      User     @relation("SentFollowRequests", fields: [senderId], references: [id], onDelete: Cascade)
-  receiverId  String
-  receiver    User     @relation("ReceivedFollowRequests", fields: [receiverId], references: [id], onDelete: Cascade)
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentFollowRequests", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("ReceivedFollowRequests", fields: [receiverId], references: [id], onDelete: Cascade)
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
 
   @@index([receiverId])
   @@index([senderId])

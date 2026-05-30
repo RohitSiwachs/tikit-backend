@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { ValidationPipe, ClassSerializerInterceptor, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   // ─── Security headers ─────────────────────────────────
@@ -35,9 +36,16 @@ async function bootstrap() {
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   // ─── CORS ─────────────────────────────────────────────
+  // In production CORS_ORIGIN must be set (enforced by env validation).
+  // Multiple allowed origins can be comma-separated: https://app.tikit.se,https://admin.tikit.se
+  const rawOrigins = process.env.CORS_ORIGIN || '';
+  const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
   });
 
   // ─── Swagger (disabled in production) ─────────────────
@@ -50,13 +58,29 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
     SwaggerModule.setup('v1/docs', app, document);
-    console.log(`📚 Swagger docs at http://localhost:${process.env.PORT || 3000}/v1/docs`);
   }
 
-  // ─── Start ────────────────────────────────────────────
+  // ─── Graceful shutdown ────────────────────────────────
+  // NestJS will call OnModuleDestroy on all providers (including PrismaService)
+  // before the process exits. Gives in-flight requests up to 10s to complete.
+  app.enableShutdownHooks();
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
-  console.log(`TiKit API running on port ${port}`);
+
+  if (process.env.NODE_ENV !== 'production') {
+    logger.log(`\n====================================================`);
+    logger.log(`🚀 TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
+    logger.log(`====================================================`);
+    logger.log(`1. 📄 Localhost Swagger:   http://localhost:${port}/v1/docs`);
+    logger.log(`2. 🌍 Render Live Swagger: https://tikit-backend.onrender.com/v1/docs`);
+    logger.log(`3. 💻 Backend Localhost:   http://localhost:${port}`);
+    logger.log(`4. 💓 Health API:          http://localhost:${port}/v1/health`);
+    logger.log(`5. 🚀 Render Live Link:    https://tikit-backend.onrender.com`);
+    logger.log(`====================================================\n`);
+  } else {
+    logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
+  }
 }
 
 bootstrap();

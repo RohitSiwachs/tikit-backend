@@ -1,20 +1,31 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailsService } from '../emails/emails.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
-import { Expo } from 'expo-server-sdk';
+import Expo from 'expo-server-sdk';
+
+// Campaign status state machine:
+// draft → processing → sent
+// draft → scheduled → processing → sent
+// processing → failed (on unhandled error)
+type CampaignStatus = 'draft' | 'scheduled' | 'processing' | 'sent' | 'failed';
+
+const BATCH_SIZE = 100;
 
 @Injectable()
 export class CampaignsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CampaignsService.name);
+  private readonly expo = new Expo();
 
-  create(createCampaignDto: CreateCampaignDto) {
-    const data: any = { ...createCampaignDto };
-    if (data.scheduledAt) {
-      data.scheduledAt = new Date(data.scheduledAt);
-    }
-    return this.prisma.campaign.create({
-      data,
-    });
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailsService: EmailsService,
+  ) {}
+
+  create(dto: CreateCampaignDto) {
+    const data: any = { ...dto };
+    if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
+    return this.prisma.campaign.create({ data });
   }
 
   findAll() {
@@ -23,127 +34,185 @@ export class CampaignsService {
 
   async findOne(id: string) {
     const campaign = await this.prisma.campaign.findUnique({ where: { id } });
-    if (!campaign) throw new NotFoundException(`Campaign with ID ${id} not found`);
+    if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
     return campaign;
   }
 
-  update(id: string, updateCampaignDto: UpdateCampaignDto) {
-    const data: any = { ...updateCampaignDto };
-    if (data.scheduledAt) {
-      data.scheduledAt = new Date(data.scheduledAt);
-    }
-    return this.prisma.campaign.update({
-      where: { id },
-      data,
-    });
+  update(id: string, dto: UpdateCampaignDto) {
+    const data: any = { ...dto };
+    if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
+    return this.prisma.campaign.update({ where: { id }, data });
   }
 
   remove(id: string) {
     return this.prisma.campaign.delete({ where: { id } });
   }
 
-  async triggerSend(id: string) {
-    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
-    if (!campaign) throw new NotFoundException(`Campaign with ID ${id} not found`);
-    if (campaign.status === 'sent') throw new BadRequestException('Campaign already sent');
+  async triggerSend(id: string): Promise<{ message: string; campaignId: string }> {
+    const campaign = await this.findOne(id);
 
-    const filters: any = (campaign.segmentFilters as any) ?? {};
+    if (campaign.status === 'sent') {
+      throw new BadRequestException('Campaign has already been sent');
+    }
+    if (campaign.status === 'processing') {
+      throw new BadRequestException('Campaign send is already in progress');
+    }
 
-    const whereClause: any = {};
-    if (filters.schoolId) whereClause.schoolId = filters.schoolId;
-    if (filters.className) whereClause.className = filters.className;
-    if (filters.role) whereClause.role = filters.role;
-
-    const audience = await this.prisma.user.findMany({
-      where: whereClause,
-      select: { id: true, phone: true, email: true, expoPushToken: true }
+    // Atomic lock: only transitions from draft or scheduled → processing.
+    // If two callers race here, only one gets count=1.
+    const locked = await this.prisma.campaign.updateMany({
+      where: { id, status: { in: ['draft', 'scheduled'] } },
+      data: { status: 'processing' as CampaignStatus },
     });
 
-    let sentCount = 0;
-    const username = process.env.ELKS_USERNAME;
-    const password = process.env.ELKS_PASSWORD;
-    const expo = new Expo();
+    if (locked.count === 0) {
+      throw new BadRequestException('Campaign could not be locked for sending');
+    }
 
-    const sendSms = async (phone: string, message: string) => {
-      if (username && password) {
-        try {
-          const res = await fetch('https://api.46elks.com/a1/sms', {
-            method: 'POST',
-            headers: {
-              'Authorization': 'Basic ' + Buffer.from(username + ':' + password).toString('base64'),
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: new URLSearchParams({
-              from: 'TiKit',
-              to: phone,
-              message
-            })
-          });
-          return res.ok;
-        } catch (err) {
-          console.error('Failed to send SMS via 46elks', err);
-          return false;
-        }
-      } else {
-        // Mock send if credentials aren't set — never log phone numbers
-        console.log('[dev] SMS mock send (set ELKS_USERNAME/PASSWORD to enable real delivery)');
-        return true;
-      }
+    // Return immediately — the actual send runs in the background.
+    // Phase 4 will replace setImmediate with a BullMQ job for persistence + retries.
+    setImmediate(() =>
+      this.runSend(id).catch((err) =>
+        this.logger.error(`Campaign ${id} background send threw unhandled error`, err.stack),
+      ),
+    );
+
+    return { message: 'Campaign send started', campaignId: id };
+  }
+
+  // Called by triggerSend (via setImmediate) and by the scheduler.
+  // Processes users in cursor-based batches to avoid loading all users into heap at once.
+  async runSend(id: string): Promise<void> {
+    const campaign = await this.findOne(id);
+    const filters: any = (campaign.segmentFilters as any) ?? {};
+
+    const baseWhere: any = {
+      deletedAt: null, // Never contact GDPR-deleted users
     };
+    if (filters.schoolId) baseWhere.schoolId = filters.schoolId;
+    if (filters.className) baseWhere.className = filters.className;
+    if (filters.role) baseWhere.role = filters.role;
+
+    let cursor: string | undefined;
+    let totalSent = 0;
+
+    try {
+      while (true) {
+        const batch = await this.prisma.user.findMany({
+          where: baseWhere,
+          take: BATCH_SIZE,
+          ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+          orderBy: { id: 'asc' },
+          select: { id: true, phone: true, email: true, expoPushToken: true },
+        });
+
+        if (batch.length === 0) break;
+
+        cursor = batch[batch.length - 1].id;
+        totalSent += await this.sendBatch(campaign, batch);
+
+        // Yield to the event loop between batches so HTTP handlers aren't starved
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+
+      await this.prisma.campaign.update({
+        where: { id },
+        data: { status: 'sent' as CampaignStatus, sentCount: totalSent },
+      });
+
+      this.logger.log(`Campaign ${id} sent to ${totalSent} recipients`);
+    } catch (err) {
+      this.logger.error(`Campaign ${id} failed after ${totalSent} sends`, err.stack);
+      // Best-effort status update — don't throw, the scheduler will see 'failed' and not retry
+      await this.prisma.campaign.update({
+        where: { id },
+        data: { status: 'failed' as CampaignStatus },
+      }).catch(() => {});
+    }
+  }
+
+  private async sendBatch(campaign: any, batch: any[]): Promise<number> {
+    let sent = 0;
 
     if (campaign.channel === 'push') {
-      const messages: any[] = [];
-      for (const user of audience) {
-        if (user.expoPushToken && Expo.isExpoPushToken(user.expoPushToken)) {
-          messages.push({
-            to: user.expoPushToken,
-            sound: 'default',
-            title: campaign.title,
-            body: campaign.body,
-            data: { campaignId: campaign.id },
-          });
-        }
-      }
+      const messages = batch
+        .filter((u) => u.expoPushToken && Expo.isExpoPushToken(u.expoPushToken))
+        .map((u) => ({
+          to: u.expoPushToken,
+          sound: 'default' as const,
+          title: campaign.title,
+          body: campaign.body,
+          data: { campaignId: campaign.id },
+        }));
 
       if (messages.length > 0) {
-        const chunks = expo.chunkPushNotifications(messages);
+        const chunks = this.expo.chunkPushNotifications(messages);
         for (const chunk of chunks) {
           try {
-            const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-            sentCount += ticketChunk.length;
-          } catch (error) {
-            console.error('Error sending Expo push notifications:', error);
+            const results = await this.expo.sendPushNotificationsAsync(chunk);
+            sent += results.filter((r) => r.status === 'ok').length;
+          } catch (err) {
+            this.logger.error('Push chunk failed', err.message);
           }
         }
       }
     } else if (campaign.channel === 'sms') {
-      for (const user of audience) {
-        if (user.phone) {
-          const success = await sendSms(user.phone, campaign.body);
-          if (success) sentCount++;
+      const username = process.env.ELKS_USERNAME;
+      const password = process.env.ELKS_PASSWORD;
+
+      for (const user of batch) {
+        if (!user.phone) continue;
+        try {
+          const success = await this.sendSms(username, password, user.phone, campaign.body);
+          if (success) sent++;
+        } catch (err) {
+          this.logger.warn(`SMS to user ${user.id} failed: ${err.message}`);
         }
       }
-    } else {
-      // Email logic (mocked for now)
-      sentCount = audience.length;
+    } else if (campaign.channel === 'email') {
+      for (const user of batch) {
+        if (!user.email) continue;
+        try {
+          const result = await this.emailsService.sendCampaignEmail(
+            user.email,
+            campaign.title,
+            campaign.body,
+          );
+          if (result.success) sent++;
+        } catch (err) {
+          this.logger.warn(`Email to user ${user.id} failed: ${err.message}`);
+        }
+      }
     }
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: {
-        status: 'sent',
-        sentCount,
-      }
+    return sent;
+  }
+
+  private async sendSms(
+    username: string | undefined,
+    password: string | undefined,
+    phone: string,
+    message: string,
+  ): Promise<boolean> {
+    if (!username || !password) {
+      this.logger.debug('[dev] SMS mock — set ELKS_USERNAME/PASSWORD for real delivery');
+      return true;
+    }
+    const res = await fetch('https://api.46elks.com/a1/sms', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ from: 'TiKit', to: phone, message }),
     });
+    return res.ok;
   }
 
   async getReport(id: string) {
-    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
-    if (!campaign) throw new NotFoundException(`Campaign with ID ${id} not found`);
-
-    const openRate = campaign.sentCount > 0 
-      ? (campaign.openCount / campaign.sentCount) * 100 
-      : 0;
+    const campaign = await this.findOne(id);
+    const openRate =
+      campaign.sentCount > 0 ? (campaign.openCount / campaign.sentCount) * 100 : 0;
 
     return {
       campaignId: campaign.id,

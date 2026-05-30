@@ -13,31 +13,34 @@ export class NotificationsService {
   async sendToSegment(dto: SendNotificationDto) {
     const { segmentFilters } = dto;
 
-    const where: any = {};
+    const where: any = {
+      deletedAt: null, // Never send to soft-deleted (GDPR erased) users
+      expoPushToken: { not: null },
+      notifPush: true,
+    };
+
     if (segmentFilters.schoolId) where.schoolId = segmentFilters.schoolId;
+
     if (segmentFilters.minAge || segmentFilters.maxAge) {
       where.age = {};
       if (segmentFilters.minAge) where.age.gte = segmentFilters.minAge;
       if (segmentFilters.maxAge) where.age.lte = segmentFilters.maxAge;
     }
+
     if (segmentFilters.eventId) {
       where.tickets = { some: { eventId: segmentFilters.eventId } };
     }
 
-    // Only target users who have a push token and have push notifications enabled
-    where.expoPushToken = { not: null };
-    where.notifPush = true;
-
     const users = await this.prisma.user.findMany({
       where,
-      select: { id: true, email: true, expoPushToken: true },
+      select: { id: true, expoPushToken: true },
     });
 
     const validTokens = users
-      .map(u => u.expoPushToken!)
-      .filter(token => Expo.isExpoPushToken(token));
+      .map((u) => u.expoPushToken!)
+      .filter((token) => Expo.isExpoPushToken(token));
 
-    const messages: ExpoPushMessage[] = validTokens.map(token => ({
+    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
       to: token,
       sound: 'default',
       title: dto.title,
@@ -52,7 +55,7 @@ export class NotificationsService {
     for (const chunk of chunks) {
       try {
         const tickets = await this.expo.sendPushNotificationsAsync(chunk);
-        tickets.forEach(ticket => {
+        tickets.forEach((ticket) => {
           if (ticket.status === 'ok') successCount++;
           else {
             failureCount++;
