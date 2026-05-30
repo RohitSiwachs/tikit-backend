@@ -1,6 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
+import { GetPresignedUrlDto } from './dto/upload.dto';
 
 @ApiTags('Upload')
 @ApiBearerAuth()
@@ -8,10 +9,11 @@ import { UploadService } from './upload.service';
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
-  @Post('presign')
-  @ApiOperation({ summary: 'Generate pre-signed S3 URL for direct upload' })
-  presign(
-    @Body() body: { filename: string; content_type: string; folder?: string },
+  @Post('presigned-url')
+  @ApiOperation({ summary: 'Get a presigned URL to upload a file directly to S3' })
+  @ApiBody({ type: GetPresignedUrlDto })
+  async getPresignedUrl(
+    @Body() body: GetPresignedUrlDto,
   ) {
     return this.uploadService.generatePresignedUrl(body);
   }

@@ -17,9 +17,10 @@ import {
 } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
+import { AssignCardsToUsersDto } from './dto/assign-cards.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -53,7 +54,8 @@ export class UsersController {
   @Post('assign-cards')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Assign a card to multiple specific students' })
-  assignCards(@Body() body: { cardId: string, userIds: string[] }) {
+  @ApiBody({ type: AssignCardsToUsersDto })
+  assignCards(@Body() body: AssignCardsToUsersDto) {
     return this.usersService.assignCards(body.cardId, body.userIds);
   }
 
