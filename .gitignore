@@ -41,6 +41,10 @@ yarn-error.log*
 .env*.local
 
 /generated/prisma
+
+# Prisma local dev database
+prisma/*.db
+prisma/*.db-journal
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat

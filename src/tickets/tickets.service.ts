@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketStatus } from '../prisma-enums';
 import * as crypto from 'crypto';
@@ -15,6 +15,8 @@ export function generateTicketCode(): string {
 
 @Injectable()
 export class TicketsService {
+  private readonly logger = new Logger(TicketsService.name);
+
   constructor(
     private prisma: PrismaService,
     private emailsService: EmailsService,
@@ -74,9 +76,9 @@ export class TicketsService {
             populated.event.title,
             populated.code,
           )
-          .catch((err) => console.error('[TicketsService] Receipt email failed:', err)),
+          .catch((err) => this.logger.error('Receipt email failed', err?.stack)),
       )
-      .catch((err) => console.error('[TicketsService] Failed to load ticket for email:', err));
+      .catch((err) => this.logger.error('Failed to load ticket for email', err?.stack));
 
     return ticket;
   }

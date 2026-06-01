@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
+import { LoggerModule } from 'nestjs-pino';
 import { APP_GUARD } from '@nestjs/core';
 import { databaseConfig, jwtConfig, s3Config, resendConfig } from './config/index';
 import { envValidationSchema } from './config/env.validation';
@@ -43,6 +46,26 @@ import { AppController } from './app.controller';
 
     // ─── Scheduler (cron jobs) ─────────────────────────────
     ScheduleModule.forRoot(),
+
+    // ─── Health checks ─────────────────────────────────────
+    TerminusModule,
+
+    // ─── Structured logging ────────────────────────────────
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
+        transport: process.env.NODE_ENV !== 'production'
+          ? { target: 'pino-pretty', options: { singleLine: true, colorize: true } }
+          : undefined,
+        genReqId: (req) =>
+          (req.headers['x-request-id'] as string) ?? crypto.randomUUID(),
+        serializers: {
+          req: (req) => ({ method: req.method, url: req.url, id: req.id }),
+          res: (res) => ({ statusCode: res.statusCode }),
+        },
+        redact: ['req.headers.authorization'],
+      },
+    }),
 
     // ─── Rate Limiting ─────────────────────────────────────
     ThrottlerModule.forRoot([

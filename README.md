@@ -1,98 +1,172 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# TiKit Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for the TiKit school event ticketing platform. Built with NestJS, PostgreSQL (PostGIS), and Prisma.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Requirements
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Node.js 20+
+- PostgreSQL 16+ with PostGIS extension (or use the provided Docker Compose)
+- npm
 
-## Project setup
+---
+
+## Local Setup
+
+### 1. Install dependencies
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+### 2. Start the database
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker-compose up -d
 ```
 
-## Run tests
+This starts a PostgreSQL 16 + PostGIS instance on port `5432`.
+
+### 3. Configure environment
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
+
+Edit `.env` and fill in the required values. At minimum you need:
+- `DATABASE_URL` and `DIRECT_URL`
+- `JWT_PRIVATE_KEY` and `JWT_PUBLIC_KEY` (RS256 key pair — see instructions in `.env.example`)
+
+### 4. Run database migrations
+
+```bash
+npx prisma migrate dev
+```
+
+### 5. (Optional) Seed the database
+
+```bash
+npx ts-node scripts/mega-seed.ts
+```
+
+### 6. Start the development server
+
+```bash
+npm run start:dev
+```
+
+API is available at `http://localhost:3000/v1`
+Swagger docs at `http://localhost:3000/v1/docs`
+Health check at `http://localhost:3000/v1/health`
+
+---
+
+## Environment Variables
+
+See [.env.example](.env.example) for all variables with descriptions. Key ones:
+
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | PostgreSQL connection string (can be pooled) |
+| `DIRECT_URL` | Yes | Direct PostgreSQL connection (used by migrations) |
+| `JWT_PRIVATE_KEY` | Yes | RS256 private key for signing tokens |
+| `JWT_PUBLIC_KEY` | Yes | RS256 public key for verifying tokens |
+| `CORS_ORIGIN` | Prod only | Allowed frontend origins (comma-separated) |
+| `FRONTEND_URL` | Prod only | Used in password reset email links |
+| `LOG_LEVEL` | No | `debug` (dev default) / `warn` (prod default) |
+| `RESEND_API_KEY` | No | Email sending — falls back to console log in dev |
+| `ELKS_USERNAME` | No | SMS via 46elks — falls back to mock in dev |
+| `AWS_ACCESS_KEY_ID` | No | S3 file uploads |
+
+---
+
+## Scripts
+
+```bash
+npm run start:dev     # Development with hot reload
+npm run start:prod    # Production (runs compiled dist/)
+npm run build         # Compile TypeScript
+npm run test          # Unit tests
+npm run test:e2e      # End-to-end tests
+npm run test:cov      # Test coverage report
+npm run lint          # ESLint
+npm run format        # Prettier
+```
+
+---
+
+## Database
+
+```bash
+npx prisma migrate dev          # Run pending migrations (dev)
+npx prisma migrate deploy       # Run pending migrations (production)
+npx prisma studio               # Open Prisma Studio (DB GUI)
+npx prisma generate             # Regenerate Prisma client after schema changes
+```
+
+---
+
+## Project Structure
+
+```
+src/
+├── auth/           # JWT auth, guards, decorators, OTP, password reset
+├── users/          # User profiles, follow system, notification settings
+├── schools/        # School management
+├── events/         # Event CRUD, ticket types, social features
+├── tickets/        # Ticket purchase and QR code generation
+├── scanner/        # QR code scanning and check-in
+├── cards/          # Digital loyalty cards
+├── wallet/         # User wallet (tickets + activated cards)
+├── vouchers/       # Voucher redemption
+├── campaigns/      # Push/email/SMS campaign management
+├── segments/       # User segmentation for campaigns
+├── posts/          # School social feed
+├── classes/        # School class management
+├── notifications/  # Push notification delivery
+├── upload/         # S3 presigned URL generation
+├── gateway/        # WebSocket gateway (real-time events)
+├── admin/          # Admin dashboard statistics
+├── emails/         # Transactional email service (Resend)
+├── config/         # Config factories and env validation
+├── common/         # Shared filters, enums, decorators
+└── prisma/         # Prisma service and module
+```
+
+---
+
+## API Overview
+
+All routes are prefixed with `/v1`. All routes require a Bearer JWT unless marked public.
+
+| Module | Base path |
+|---|---|
+| Auth | `/v1/auth` |
+| Users | `/v1/users` |
+| Schools | `/v1/schools` |
+| Events | `/v1/events` |
+| Tickets | `/v1/tickets` |
+| Cards | `/v1/cards` |
+| Wallet | `/v1/wallet` |
+| Vouchers | `/v1/vouchers` |
+| Scanner | `/v1/scanner` |
+| Campaigns | `/v1/campaigns` |
+| Upload | `/v1/upload` |
+| Admin | `/v1/admin` |
+| Health | `/v1/health` |
+
+Full interactive documentation is available via Swagger at `/v1/docs` (development only).
+
+---
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Set `NODE_ENV=production` and ensure all required env vars are present. Run migrations before starting:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npx prisma migrate deploy
+node dist/main
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+The health endpoint at `/v1/health` performs a live database ping and returns HTTP 503 if the database is unreachable — use this for load balancer health checks.
