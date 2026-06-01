@@ -4,6 +4,7 @@ import {
   IsEmail,
   IsUrl,
   IsBoolean,
+  IsNotEmpty,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -44,15 +45,15 @@ export class CreateSchoolDto {
   @IsString()
   schoolCode: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty()
+  @IsNotEmpty()
   @IsEmail()
-  contactEmail?: string;
+  contactEmail: string;
 
-  @ApiProperty({ required: false, description: 'Password for the initial school admin (created if contactEmail is also provided)' })
-  @IsOptional()
+  @ApiProperty({ description: 'Password for the initial school admin' })
+  @IsNotEmpty()
   @IsString()
-  schoolAdminPassword?: string;
+  schoolAdminPassword: string;
 
   @ApiProperty({ required: false })
   @IsOptional()

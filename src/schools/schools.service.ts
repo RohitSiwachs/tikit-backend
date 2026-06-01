@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,31 +12,33 @@ export class SchoolsService {
   async create(createSchoolDto: CreateSchoolDto) {
     const { schoolAdminPassword, ...schoolData } = createSchoolDto as any;
 
+    if (!schoolData.contactEmail || !schoolAdminPassword) {
+      throw new BadRequestException('contactEmail and schoolAdminPassword are required to create a school');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const school = await tx.school.create({
         data: schoolData,
       });
 
-      if (schoolData.contactEmail && schoolAdminPassword) {
-        const hashedPassword = await bcrypt.hash(schoolAdminPassword, 12);
-        
-        const usernameBase = schoolData.contactEmail.split('@')[0];
-        const uniqueSuffix = crypto.randomBytes(2).toString('hex');
-        
-        await tx.user.create({
-          data: {
-            email: schoolData.contactEmail,
-            username: `${usernameBase}_${uniqueSuffix}`,
-            displayName: `${schoolData.name} Admin`,
-            password: hashedPassword,
-            role: 'KARORDFORANDE',
-            accountStatus: 'ACTIVE',
-            schoolId: school.id,
-            isVerified: true,
-            approvalStatus: 'approved',
-          }
-        });
-      }
+      const hashedPassword = await bcrypt.hash(schoolAdminPassword, 12);
+      
+      const usernameBase = schoolData.contactEmail.split('@')[0];
+      const uniqueSuffix = crypto.randomBytes(2).toString('hex');
+      
+      await tx.user.create({
+        data: {
+          email: schoolData.contactEmail,
+          username: `${usernameBase}_${uniqueSuffix}`,
+          displayName: `${schoolData.name} Admin`,
+          password: hashedPassword,
+          role: 'KARORDFORANDE',
+          accountStatus: 'ACTIVE',
+          schoolId: school.id,
+          isVerified: true,
+          approvalStatus: 'approved',
+        }
+      });
 
       return school;
     });
