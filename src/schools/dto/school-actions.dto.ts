@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsOptional, ValidateNested, IsEmail, IsNumber, ArrayNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsArray,
+  IsOptional,
+  ValidateNested,
+  IsEmail,
+  IsNumber,
+  ArrayNotEmpty,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class StudentUploadItemDto {
@@ -18,7 +26,10 @@ export class StudentUploadItemDto {
 }
 
 export class UploadStudentsDto {
-  @ApiProperty({ type: [StudentUploadItemDto], description: 'List of students to upload' })
+  @ApiProperty({
+    type: [StudentUploadItemDto],
+    description: 'List of students to upload',
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => StudentUploadItemDto)
@@ -37,7 +48,10 @@ export class ClassUploadItemDto {
 }
 
 export class UploadClassesDto {
-  @ApiProperty({ type: [ClassUploadItemDto], description: 'List of classes to upload' })
+  @ApiProperty({
+    type: [ClassUploadItemDto],
+    description: 'List of classes to upload',
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ClassUploadItemDto)
@@ -49,7 +63,10 @@ export class AssignCardsToSchoolDto {
   @IsString()
   cardId: string;
 
-  @ApiProperty({ type: [String], description: 'List of class names to assign the card to' })
+  @ApiProperty({
+    type: [String],
+    description: 'List of class names to assign the card to',
+  })
   @IsArray()
   @IsString({ each: true })
   @ArrayNotEmpty()

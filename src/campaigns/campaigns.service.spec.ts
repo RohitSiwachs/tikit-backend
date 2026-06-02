@@ -5,7 +5,12 @@ import { EmailsService } from '../emails/emails.service';
 import { getQueueToken } from '@nestjs/bullmq';
 
 const mockPrisma = {
-  campaign: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+  campaign: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
   user: { findMany: jest.fn() },
 };
 const mockEmailsService = { sendEmail: jest.fn() };

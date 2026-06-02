@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketStatus } from '../prisma-enums';
 import * as crypto from 'crypto';
@@ -22,12 +28,22 @@ export class TicketsService {
     private emailsService: EmailsService,
   ) {}
 
-  async claimFreeTicket(userId: string, eventId: string, ticketTypeId: string, userSchoolId: string) {
+  async claimFreeTicket(
+    userId: string,
+    eventId: string,
+    ticketTypeId: string,
+    userSchoolId: string,
+  ) {
     if (!userId) throw new BadRequestException('User not authenticated');
 
-    const ticketType = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
+    const ticketType = await this.prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+    });
     if (!ticketType) throw new NotFoundException('Ticket type not found');
-    if (ticketType.eventId !== eventId) throw new BadRequestException('Ticket type does not belong to this event');
+    if (ticketType.eventId !== eventId)
+      throw new BadRequestException(
+        'Ticket type does not belong to this event',
+      );
 
     // Look up event to compare school IDs
     const event = await this.prisma.event.findUnique({
@@ -39,20 +55,31 @@ export class TicketsService {
     const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
 
     // Eligibility: price===0 (always free) OR (freeForHostSchool AND host-school student)
-    const isFreeEligible = ticketType.price === 0 || (ticketType.freeForHostSchool && isHostSchoolStudent);
+    const isFreeEligible =
+      ticketType.price === 0 ||
+      (ticketType.freeForHostSchool && isHostSchoolStudent);
 
     if (!isFreeEligible) {
-      throw new BadRequestException('This ticket type is not available for free claim');
+      throw new BadRequestException(
+        'This ticket type is not available for free claim',
+      );
     }
 
     const ticket = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.ticket.findFirst({ where: { userId, eventId } });
-      if (existing) throw new ConflictException('You already have a ticket for this event');
+      const existing = await tx.ticket.findFirst({
+        where: { userId, eventId },
+      });
+      if (existing)
+        throw new ConflictException('You already have a ticket for this event');
 
       // Atomic decrement: the WHERE quantityRemaining > 0 is evaluated and the update applied
       // in a single DB round-trip, so concurrent claims cannot both pass the availability check.
       const reserved = await tx.ticketType.updateMany({
-        where: { id: ticketTypeId, quantityRemaining: { gt: 0 }, isSoldOut: false },
+        where: {
+          id: ticketTypeId,
+          quantityRemaining: { gt: 0 },
+          isSoldOut: false,
+        },
         data: { quantityRemaining: { decrement: 1 } },
       });
 
@@ -66,7 +93,10 @@ export class TicketsService {
         select: { quantityRemaining: true },
       });
       if (afterReserve?.quantityRemaining === 0) {
-        await tx.ticketType.update({ where: { id: ticketTypeId }, data: { isSoldOut: true } });
+        await tx.ticketType.update({
+          where: { id: ticketTypeId },
+          data: { isSoldOut: true },
+        });
       }
 
       return tx.ticket.create({
@@ -91,9 +121,13 @@ export class TicketsService {
             populated.event.title,
             populated.code,
           )
-          .catch((err) => this.logger.error('Receipt email failed', err?.stack)),
+          .catch((err) =>
+            this.logger.error('Receipt email failed', err?.stack),
+          ),
       )
-      .catch((err) => this.logger.error('Failed to load ticket for email', err?.stack));
+      .catch((err) =>
+        this.logger.error('Failed to load ticket for email', err?.stack),
+      );
 
     return ticket;
   }
@@ -104,7 +138,8 @@ export class TicketsService {
       select: { status: true, ticketTypeId: true },
     });
     if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
-    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket is already voided');
+    if (ticket.status === TicketStatus.VOID)
+      throw new BadRequestException('Ticket is already voided');
 
     await this.prisma.$transaction(async (tx) => {
       await tx.ticket.update({
@@ -126,14 +161,21 @@ export class TicketsService {
   }
 
   async cancelTicket(userId: string, eventId: string) {
-    const ticket = await this.prisma.ticket.findFirst({ where: { userId, eventId } });
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { userId, eventId },
+    });
     if (!ticket) throw new NotFoundException('No ticket found for this event');
     if (ticket.status === TicketStatus.CHECKED_IN) {
-      throw new BadRequestException('Cannot cancel a ticket that has already been used');
+      throw new BadRequestException(
+        'Cannot cancel a ticket that has already been used',
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.ticket.update({ where: { id: ticket.id }, data: { status: TicketStatus.VOID } });
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { status: TicketStatus.VOID },
+      });
       await tx.ticketType.update({
         where: { id: ticket.ticketTypeId },
         data: { quantityRemaining: { increment: 1 }, isSoldOut: false },
@@ -146,8 +188,10 @@ export class TicketsService {
   async checkIn(id: string) {
     const ticket = await this.prisma.ticket.findUnique({ where: { id } });
     if (!ticket) throw new NotFoundException(`Ticket ${id} not found`);
-    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('Ticket has been voided');
-    if (ticket.status === TicketStatus.CHECKED_IN) throw new BadRequestException('Ticket already checked in');
+    if (ticket.status === TicketStatus.VOID)
+      throw new BadRequestException('Ticket has been voided');
+    if (ticket.status === TicketStatus.CHECKED_IN)
+      throw new BadRequestException('Ticket already checked in');
 
     return this.prisma.ticket.update({
       where: { id },
@@ -160,9 +204,17 @@ export class TicketsService {
       where: { id },
       include: {
         user: {
-          select: { id: true, displayName: true, email: true, avatarUrl: true, username: true },
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            avatarUrl: true,
+            username: true,
+          },
         },
-        event: { select: { id: true, title: true, startsAt: true, venueName: true } },
+        event: {
+          select: { id: true, title: true, startsAt: true, venueName: true },
+        },
         ticketType: { select: { id: true, name: true } },
       },
     });
@@ -179,7 +231,13 @@ export class TicketsService {
       where,
       include: {
         user: {
-          select: { id: true, displayName: true, email: true, avatarUrl: true, username: true },
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            avatarUrl: true,
+            username: true,
+          },
         },
         event: { select: { id: true, title: true, startsAt: true } },
         ticketType: { select: { id: true, name: true } },

@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketStatus } from '../prisma-enums';
 import { EventsGateway } from '../gateway/events.gateway';
@@ -41,21 +45,35 @@ export class ScannerService {
       },
     });
 
-    if (!ticket) throw new NotFoundException('Invalid QR code — ticket not found');
-    if (ticket.event.isCancelled) throw new BadRequestException('This event has been cancelled');
-    if (new Date() > ticket.event.endsAt) throw new BadRequestException('This event has already ended');
-    if (ticket.status === TicketStatus.VOID) throw new BadRequestException('This ticket has been voided');
+    if (!ticket)
+      throw new NotFoundException('Invalid QR code — ticket not found');
+    if (ticket.event.isCancelled)
+      throw new BadRequestException('This event has been cancelled');
+    if (new Date() > ticket.event.endsAt)
+      throw new BadRequestException('This event has already ended');
+    if (ticket.status === TicketStatus.VOID)
+      throw new BadRequestException('This ticket has been voided');
 
     if (verifyOnly) {
       if (ticket.status === TicketStatus.CHECKED_IN) {
-        throw new BadRequestException(`Ticket already checked in at ${ticket.checkedInAt}`);
+        throw new BadRequestException(
+          `Ticket already checked in at ${ticket.checkedInAt}`,
+        );
       }
       const stats = await this.getEventStats(ticket.eventId);
-      return this.buildTicketResponse('Ticket is valid', ticket, ticket.status, ticket.checkedInAt, stats);
+      return this.buildTicketResponse(
+        'Ticket is valid',
+        ticket,
+        ticket.status,
+        ticket.checkedInAt,
+        stats,
+      );
     }
 
     if (ticket.status === TicketStatus.CHECKED_IN) {
-      throw new BadRequestException(`Ticket already checked in at ${ticket.checkedInAt}`);
+      throw new BadRequestException(
+        `Ticket already checked in at ${ticket.checkedInAt}`,
+      );
     }
 
     // Atomic conditional update — the WHERE status = 'ISSUED' clause is the race guard.
@@ -129,17 +147,24 @@ export class ScannerService {
         card: true,
         user: {
           select: {
-            displayName: true, firstName: true, lastName: true,
-            email: true, avatarUrl: true, age: true,
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            avatarUrl: true,
+            age: true,
           },
         },
       },
     });
 
     if (!cardCode) throw new NotFoundException('Invalid card code — not found');
-    if (cardCode.card.status === 'blocked') throw new BadRequestException('This card has been blocked');
-    if (cardCode.card.status === 'paused') throw new BadRequestException('This card is currently paused');
-    if (new Date() > cardCode.card.validUntil) throw new BadRequestException('This card has expired');
+    if (cardCode.card.status === 'blocked')
+      throw new BadRequestException('This card has been blocked');
+    if (cardCode.card.status === 'paused')
+      throw new BadRequestException('This card is currently paused');
+    if (new Date() > cardCode.card.validUntil)
+      throw new BadRequestException('This card has expired');
 
     return {
       type: 'CARD',
@@ -157,15 +182,22 @@ export class ScannerService {
 
   async getEventStats(eventId: string) {
     const [totalTickets, scannedTickets] = await Promise.all([
-      this.prisma.ticket.count({ where: { eventId, status: { not: TicketStatus.VOID } } }),
-      this.prisma.ticket.count({ where: { eventId, status: TicketStatus.CHECKED_IN } }),
+      this.prisma.ticket.count({
+        where: { eventId, status: { not: TicketStatus.VOID } },
+      }),
+      this.prisma.ticket.count({
+        where: { eventId, status: TicketStatus.CHECKED_IN },
+      }),
     ]);
 
     return {
       scannedCount: scannedTickets,
       remainingEntries: totalTickets - scannedTickets,
       totalCapacity: totalTickets,
-      occupancyRate: totalTickets > 0 ? Math.round((scannedTickets / totalTickets) * 100) : 0,
+      occupancyRate:
+        totalTickets > 0
+          ? Math.round((scannedTickets / totalTickets) * 100)
+          : 0,
     };
   }
 }

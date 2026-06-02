@@ -11,7 +11,9 @@ const mockS3Config = {
 
 // Mock the entire AWS SDK presigner so tests don't make network calls
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
-  getSignedUrl: jest.fn().mockResolvedValue('https://s3.example.com/presigned-url'),
+  getSignedUrl: jest
+    .fn()
+    .mockResolvedValue('https://s3.example.com/presigned-url'),
 }));
 
 describe('UploadService', () => {

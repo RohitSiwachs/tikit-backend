@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardDto, UpdateCardDto } from './dto/card.dto';
 import * as crypto from 'crypto';
@@ -25,7 +29,7 @@ export class CardsService {
     for (let i = 0; i < count; i++) {
       codesToCreate.push({
         cardId,
-        code: crypto.randomBytes(4).toString('hex').toUpperCase()
+        code: crypto.randomBytes(4).toString('hex').toUpperCase(),
       });
     }
 
@@ -73,12 +77,12 @@ export class CardsService {
             email: true,
             avatarUrl: true,
             className: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
-    return activatedCodes.map(c => ({
+    return activatedCodes.map((c) => ({
       code: c.code,
       usedAt: c.usedAt,
       student: c.user,
@@ -88,14 +92,20 @@ export class CardsService {
   async findAll(schoolId?: string) {
     return this.prisma.card.findMany({
       where: schoolId ? { schoolId } : {},
-      include: { school: { select: { name: true } }, _count: { select: { codes: true } } },
+      include: {
+        school: { select: { name: true } },
+        _count: { select: { codes: true } },
+      },
     });
   }
 
   async findOne(id: string) {
     const card = await this.prisma.card.findUnique({
       where: { id },
-      include: { school: { select: { name: true } }, _count: { select: { codes: true } } },
+      include: {
+        school: { select: { name: true } },
+        _count: { select: { codes: true } },
+      },
     });
     if (!card) throw new NotFoundException(`Card with ID ${id} not found`);
     return card;
@@ -144,7 +154,9 @@ export class CardsService {
 
     if (!cardCode) throw new BadRequestException('Invalid card code');
     if (cardCode.userId && cardCode.userId !== userId) {
-      throw new BadRequestException('This card code is assigned to another user');
+      throw new BadRequestException(
+        'This card code is assigned to another user',
+      );
     }
     if (user.schoolId && cardCode.card.schoolId !== user.schoolId) {
       throw new BadRequestException('This card does not belong to your school');
@@ -158,7 +170,8 @@ export class CardsService {
       });
 
       if (!fresh) throw new BadRequestException('Invalid card code');
-      if (fresh.isUsed) throw new BadRequestException('This card code has already been used');
+      if (fresh.isUsed)
+        throw new BadRequestException('This card code has already been used');
 
       const claimed = await tx.cardCode.update({
         where: { id: fresh.id },

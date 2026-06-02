@@ -51,7 +51,10 @@ describe('ScannerService (integration)', () => {
     school = await createTestSchool();
     user = await createTestUser(school);
     event = await createTestEvent(school);
-    ticketType = await createTestTicketType(event, { quantityTotal: 50, quantityRemaining: 50 });
+    ticketType = await createTestTicketType(event, {
+      quantityTotal: 50,
+      quantityRemaining: 50,
+    });
     jest.clearAllMocks();
   });
 
@@ -64,13 +67,15 @@ describe('ScannerService (integration)', () => {
   it('checks in a valid ISSUED ticket', async () => {
     const ticket = await createTestTicket(user, event, ticketType);
 
-    const result = await service.scan(ticket.qrToken) as any;
+    const result = (await service.scan(ticket.qrToken)) as any;
 
     expect(result.type).toBe('TICKET');
     expect(result.isCheckedIn).toBe(true);
     expect(result.message).toBe('Check-in successful');
 
-    const dbTicket = await testPrisma.ticket.findUnique({ where: { id: ticket.id } });
+    const dbTicket = await testPrisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
     expect(dbTicket?.status).toBe('CHECKED_IN');
     expect(dbTicket?.checkedInAt).not.toBeNull();
   });
@@ -78,13 +83,15 @@ describe('ScannerService (integration)', () => {
   it('verifyOnly=true validates without checking in', async () => {
     const ticket = await createTestTicket(user, event, ticketType);
 
-    const result = await service.scan(ticket.qrToken, true) as any;
+    const result = (await service.scan(ticket.qrToken, true)) as any;
 
     expect(result.type).toBe('TICKET');
     expect(result.message).toBe('Ticket is valid');
     expect(result.isCheckedIn).toBe(false);
 
-    const dbTicket = await testPrisma.ticket.findUnique({ where: { id: ticket.id } });
+    const dbTicket = await testPrisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
     expect(dbTicket?.status).toBe('ISSUED'); // unchanged
   });
 
@@ -115,7 +122,9 @@ describe('ScannerService (integration)', () => {
     expect(failures).toHaveLength(9);
 
     // DB must have exactly one CHECKED_IN record
-    const dbTicket = await testPrisma.ticket.findUnique({ where: { id: ticket.id } });
+    const dbTicket = await testPrisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
     expect(dbTicket?.status).toBe('CHECKED_IN');
     expect(dbTicket?.checkedInAt).not.toBeNull();
 
@@ -124,8 +133,12 @@ describe('ScannerService (integration)', () => {
   });
 
   it('rejects scan of a VOID ticket', async () => {
-    const ticket = await createTestTicket(user, event, ticketType, { status: 'VOID' });
-    await expect(service.scan(ticket.qrToken)).rejects.toThrow('This ticket has been voided');
+    const ticket = await createTestTicket(user, event, ticketType, {
+      status: 'VOID',
+    });
+    await expect(service.scan(ticket.qrToken)).rejects.toThrow(
+      'This ticket has been voided',
+    );
   });
 
   it('rejects scan of an already CHECKED_IN ticket', async () => {
@@ -133,18 +146,28 @@ describe('ScannerService (integration)', () => {
       status: 'CHECKED_IN',
       checkedInAt: new Date(),
     });
-    await expect(service.scan(ticket.qrToken)).rejects.toThrow(/already checked in/i);
+    await expect(service.scan(ticket.qrToken)).rejects.toThrow(
+      /already checked in/i,
+    );
   });
 
   it('rejects scan for a cancelled event', async () => {
     const cancelledEvent = await createTestEvent(school, { isCancelled: true });
     const cancelledTicketType = await createTestTicketType(cancelledEvent);
-    const ticket = await createTestTicket(user, cancelledEvent, cancelledTicketType);
-    await expect(service.scan(ticket.qrToken)).rejects.toThrow('This event has been cancelled');
+    const ticket = await createTestTicket(
+      user,
+      cancelledEvent,
+      cancelledTicketType,
+    );
+    await expect(service.scan(ticket.qrToken)).rejects.toThrow(
+      'This event has been cancelled',
+    );
   });
 
   it('rejects scan for an unknown QR token', async () => {
-    await expect(service.scan('qr_nonexistent')).rejects.toThrow('ticket not found');
+    await expect(service.scan('qr_nonexistent')).rejects.toThrow(
+      'ticket not found',
+    );
   });
 
   it('throws when qrToken is empty', async () => {

@@ -61,7 +61,9 @@ export class AuthController {
   @Public()
   @Throttle({ default: { ttl: 60_000, limit: 20 } })
   @Post('refresh')
-  @ApiOperation({ summary: 'Rotate refresh token — returns new access + refresh token' })
+  @ApiOperation({
+    summary: 'Rotate refresh token — returns new access + refresh token',
+  })
   refresh(@Body('refresh_token') refreshToken: string) {
     return this.authService.refresh(refreshToken);
   }

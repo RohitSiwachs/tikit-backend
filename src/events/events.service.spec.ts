@@ -3,7 +3,14 @@ import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
-  event: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn(), count: jest.fn() },
+  event: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    count: jest.fn(),
+  },
   ticketType: { create: jest.fn(), update: jest.fn(), delete: jest.fn() },
   ticket: { findMany: jest.fn(), count: jest.fn() },
   eventLike: { create: jest.fn(), delete: jest.fn(), findFirst: jest.fn() },

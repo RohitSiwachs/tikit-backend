@@ -13,7 +13,10 @@ export class ScannerController {
   @Post('scan')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
   @ApiOperation({ summary: 'Scan or verify a QR code for a ticket or card' })
-  scan(@Body('qrToken') qrToken: string, @Body('verifyOnly') verifyOnly?: boolean) {
+  scan(
+    @Body('qrToken') qrToken: string,
+    @Body('verifyOnly') verifyOnly?: boolean,
+  ) {
     return this.scannerService.scan(qrToken, !!verifyOnly);
   }
 

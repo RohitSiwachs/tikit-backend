@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto, UpdatePostDto } from './dto/post.dto';
 
@@ -31,7 +35,7 @@ export class PostsService {
       where: { userId },
       select: { event: { select: { schoolId: true } } },
     });
-    userTickets.forEach(t => schoolIds.add(t.event.schoolId));
+    userTickets.forEach((t) => schoolIds.add(t.event.schoolId));
 
     const where: any = {
       schoolId: { in: [...schoolIds] },
@@ -85,7 +89,12 @@ export class PostsService {
     return post;
   }
 
-  async update(id: string, updatePostDto: UpdatePostDto, requestingUserId: string, isAdmin: boolean) {
+  async update(
+    id: string,
+    updatePostDto: UpdatePostDto,
+    requestingUserId: string,
+    isAdmin: boolean,
+  ) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
     if (!isAdmin && post.authorId !== requestingUserId) {
@@ -118,7 +127,9 @@ export class PostsService {
     });
 
     if (existing) {
-      await this.prisma.postLike.delete({ where: { postId_userId: { postId, userId } } });
+      await this.prisma.postLike.delete({
+        where: { postId_userId: { postId, userId } },
+      });
       return { liked: false };
     }
 
@@ -144,8 +155,14 @@ export class PostsService {
     });
   }
 
-  async deleteComment(commentId: string, requestingUserId: string, isAdmin: boolean) {
-    const comment = await this.prisma.postComment.findUnique({ where: { id: commentId } });
+  async deleteComment(
+    commentId: string,
+    requestingUserId: string,
+    isAdmin: boolean,
+  ) {
+    const comment = await this.prisma.postComment.findUnique({
+      where: { id: commentId },
+    });
     if (!comment) throw new NotFoundException('Comment not found');
     if (!isAdmin && comment.authorId !== requestingUserId) {
       throw new ForbiddenException('You can only delete your own comments');

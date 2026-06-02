@@ -10,7 +10,12 @@ import {
   Request,
 } from '@nestjs/common';
 import { EventsService } from './events.service';
-import { CreateEventDto, UpdateEventDto, CreateTicketTypeDto, UpdateTicketTypeDto } from './dto/create-event.dto';
+import {
+  CreateEventDto,
+  UpdateEventDto,
+  CreateTicketTypeDto,
+  UpdateTicketTypeDto,
+} from './dto/create-event.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
@@ -25,7 +30,10 @@ export class EventsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Create a new event with ticket types' })
   create(@Body() createEventDto: CreateEventDto, @Request() req: any) {
-    return this.eventsService.create(createEventDto, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+    return this.eventsService.create(
+      createEventDto,
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId,
+    );
   }
 
   @Get()
@@ -50,7 +58,9 @@ export class EventsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get event details with social counts and friends attending' })
+  @ApiOperation({
+    summary: 'Get event details with social counts and friends attending',
+  })
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.findOne(id, req?.user?.id);
   }
@@ -58,13 +68,24 @@ export class EventsController {
   @Patch(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update event (publish/cancel)' })
-  update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto, @Request() req: any) {
-    return this.eventsService.update(id, updateEventDto, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+  update(
+    @Param('id') id: string,
+    @Body() updateEventDto: UpdateEventDto,
+    @Request() req: any,
+  ) {
+    return this.eventsService.update(
+      id,
+      updateEventDto,
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId,
+    );
   }
 
   @Get(':id/attendees')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
-  @ApiOperation({ summary: 'Get list of attendees for an event with search, filtering, and pagination' })
+  @ApiOperation({
+    summary:
+      'Get list of attendees for an event with search, filtering, and pagination',
+  })
   getAttendees(
     @Param('id') id: string,
     @Query('search') search?: string,
@@ -84,7 +105,10 @@ export class EventsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Delete an event' })
   async remove(@Param('id') id: string, @Request() req: any) {
-    await this.eventsService.remove(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+    await this.eventsService.remove(
+      id,
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId,
+    );
     return { message: 'Event deleted successfully', id };
   }
 
@@ -113,21 +137,32 @@ export class EventsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Publish an event — makes it visible to students' })
   publishEvent(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.publishEvent(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+    return this.eventsService.publishEvent(
+      id,
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId,
+    );
   }
 
   @Patch(':id/unpublish')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
-  @ApiOperation({ summary: 'Unpublish an event — hides it from students without deleting' })
+  @ApiOperation({
+    summary: 'Unpublish an event — hides it from students without deleting',
+  })
   unpublishEvent(@Param('id') id: string) {
     return this.eventsService.unpublishEvent(id);
   }
 
   @Patch(':id/cancel')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
-  @ApiOperation({ summary: 'Cancel an event — scanner will reject all tickets for cancelled events' })
+  @ApiOperation({
+    summary:
+      'Cancel an event — scanner will reject all tickets for cancelled events',
+  })
   cancelEvent(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.cancelEvent(id, req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId);
+    return this.eventsService.cancelEvent(
+      id,
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId,
+    );
   }
 
   // --- TICKET TYPES ---
@@ -140,8 +175,13 @@ export class EventsController {
     @Body() createTicketTypeDto: CreateTicketTypeDto,
     @Request() req: any,
   ) {
-    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
-    return this.eventsService.createTicketType(id, createTicketTypeDto, schoolId);
+    const schoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.createTicketType(
+      id,
+      createTicketTypeDto,
+      schoolId,
+    );
   }
 
   @Patch(':id/ticket-types/:ticketTypeId')
@@ -152,8 +192,13 @@ export class EventsController {
     @Body() updateTicketTypeDto: UpdateTicketTypeDto,
     @Request() req: any,
   ) {
-    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
-    return this.eventsService.updateTicketType(ticketTypeId, updateTicketTypeDto, schoolId);
+    const schoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.updateTicketType(
+      ticketTypeId,
+      updateTicketTypeDto,
+      schoolId,
+    );
   }
 
   @Patch(':id/ticket-types/:ticketTypeId/sold-out')
@@ -165,8 +210,14 @@ export class EventsController {
     @Body('isSoldOut') isSoldOut: boolean,
     @Request() req: any,
   ) {
-    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
-    return this.eventsService.markTicketTypeSoldOut(eventId, ticketTypeId, isSoldOut, schoolId);
+    const schoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.markTicketTypeSoldOut(
+      eventId,
+      ticketTypeId,
+      isSoldOut,
+      schoolId,
+    );
   }
 
   @Delete(':id/ticket-types/:ticketTypeId')
@@ -177,7 +228,8 @@ export class EventsController {
     @Param('ticketTypeId') ticketTypeId: string,
     @Request() req: any,
   ) {
-    const schoolId = req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    const schoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
     return this.eventsService.removeTicketType(eventId, ticketTypeId, schoolId);
   }
 
@@ -209,7 +261,9 @@ export class EventsController {
 
   @Post(':id/rsvp')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
-  @ApiOperation({ summary: "I'm Going — RSVP & fetch free ticket (internal events)" })
+  @ApiOperation({
+    summary: "I'm Going — RSVP & fetch free ticket (internal events)",
+  })
   rsvp(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.rsvp(id, req.user.id, req.user.schoolId);
   }
@@ -223,7 +277,9 @@ export class EventsController {
 
   @Get(':id/external-link')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
-  @ApiOperation({ summary: 'Get external ticket provider link (external events only)' })
+  @ApiOperation({
+    summary: 'Get external ticket provider link (external events only)',
+  })
   getExternalLink(@Param('id') id: string) {
     return this.eventsService.getExternalLink(id);
   }
@@ -233,10 +289,7 @@ export class EventsController {
   @Post(':id/connect')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Request connection to another schools event' })
-  requestConnection(
-    @Param('id') eventId: string,
-    @Request() req: any,
-  ) {
+  requestConnection(@Param('id') eventId: string, @Request() req: any) {
     return this.eventsService.requestConnection(eventId, req.user.schoolId);
   }
 

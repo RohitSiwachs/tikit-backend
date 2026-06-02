@@ -3,7 +3,13 @@ import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
-  post: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  post: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
   postLike: { create: jest.fn(), delete: jest.fn(), findFirst: jest.fn() },
   postComment: { create: jest.fn(), findMany: jest.fn() },
 };

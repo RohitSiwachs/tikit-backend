@@ -22,7 +22,13 @@ describe('AdminController', () => {
   });
 
   it('getStats should delegate to AdminService.getStats', async () => {
-    const stats = { totalSchools: 3, totalStudents: 60, upcomingEvents: 2, activeCards: 10, checkinRate: 50 };
+    const stats = {
+      totalSchools: 3,
+      totalStudents: 60,
+      upcomingEvents: 2,
+      activeCards: 10,
+      checkinRate: 50,
+    };
     mockAdminService.getStats.mockResolvedValue(stats);
 
     const result = await controller.getStats();

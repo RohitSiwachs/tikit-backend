@@ -1,4 +1,13 @@
-import { Controller, Get, Patch, Param, Query, Post, Body, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Query,
+  Post,
+  Body,
+  Request,
+} from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -19,13 +28,21 @@ export class TicketsController {
     @Body('ticketTypeId') ticketTypeId: string,
   ) {
     // Fixed: was req.user.sub (undefined) — JWT strategy maps sub → id
-    return this.ticketsService.claimFreeTicket(req.user.id, eventId, ticketTypeId, req.user.schoolId);
+    return this.ticketsService.claimFreeTicket(
+      req.user.id,
+      eventId,
+      ticketTypeId,
+      req.user.schoolId,
+    );
   }
 
   @Get()
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'List tickets (admin)' })
-  findAll(@Query('eventId') eventId?: string, @Query('userId') userId?: string) {
+  findAll(
+    @Query('eventId') eventId?: string,
+    @Query('userId') userId?: string,
+  ) {
     return this.ticketsService.findAll(eventId, userId);
   }
 

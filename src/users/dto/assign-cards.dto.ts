@@ -6,7 +6,10 @@ export class AssignCardsToUsersDto {
   @IsString()
   cardId: string;
 
-  @ApiProperty({ description: 'List of user UUIDs to assign the card to', type: [String] })
+  @ApiProperty({
+    description: 'List of user UUIDs to assign the card to',
+    type: [String],
+  })
   @IsArray()
   @IsString({ each: true })
   @ArrayNotEmpty()

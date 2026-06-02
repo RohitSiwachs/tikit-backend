@@ -83,22 +83,29 @@ describe('TicketsService (integration)', () => {
     expect(failures).toHaveLength(4);
 
     // DB must show exactly 1 ISSUED ticket and 0 remaining
-    const tickets = await testPrisma.ticket.findMany({ where: { eventId: event.id } });
+    const tickets = await testPrisma.ticket.findMany({
+      where: { eventId: event.id },
+    });
     expect(tickets).toHaveLength(1);
     expect(tickets[0].status).toBe('ISSUED');
 
-    const freshType = await testPrisma.ticketType.findUnique({ where: { id: ticketType.id } });
+    const freshType = await testPrisma.ticketType.findUnique({
+      where: { id: ticketType.id },
+    });
     expect(freshType?.quantityRemaining).toBe(0);
     expect(freshType?.isSoldOut).toBe(true);
   });
 
   it('prevents duplicate ticket for the same user+event', async () => {
-    const ticketType = await createTestTicketType(event, { quantityTotal: 5, quantityRemaining: 5 });
+    const ticketType = await createTestTicketType(event, {
+      quantityTotal: 5,
+      quantityRemaining: 5,
+    });
 
     await service.claimFreeTicket(user.id, event.id, ticketType.id);
-    await expect(service.claimFreeTicket(user.id, event.id, ticketType.id)).rejects.toThrow(
-      /already have a ticket/i,
-    );
+    await expect(
+      service.claimFreeTicket(user.id, event.id, ticketType.id),
+    ).rejects.toThrow(/already have a ticket/i);
   });
 
   it('rejects claim when tickets are sold out', async () => {
@@ -107,9 +114,9 @@ describe('TicketsService (integration)', () => {
       quantityRemaining: 0,
       isSoldOut: true,
     });
-    await expect(service.claimFreeTicket(user.id, event.id, ticketType.id)).rejects.toThrow(
-      /sold out/i,
-    );
+    await expect(
+      service.claimFreeTicket(user.id, event.id, ticketType.id),
+    ).rejects.toThrow(/sold out/i);
   });
 
   // ─── voidTicket — capacity restoration ───────────────────────────────────────
@@ -119,14 +126,20 @@ describe('TicketsService (integration)', () => {
       quantityTotal: 10,
       quantityRemaining: 7,
     });
-    const ticket = await createTestTicket(user, event, ticketType, { status: 'ISSUED' });
+    const ticket = await createTestTicket(user, event, ticketType, {
+      status: 'ISSUED',
+    });
 
     await service.voidTicket(ticket.id);
 
-    const dbTicket = await testPrisma.ticket.findUnique({ where: { id: ticket.id } });
+    const dbTicket = await testPrisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
     expect(dbTicket?.status).toBe('VOID');
 
-    const freshType = await testPrisma.ticketType.findUnique({ where: { id: ticketType.id } });
+    const freshType = await testPrisma.ticketType.findUnique({
+      where: { id: ticketType.id },
+    });
     expect(freshType?.quantityRemaining).toBe(8); // 7 + 1
     expect(freshType?.isSoldOut).toBe(false);
   });
@@ -143,22 +156,32 @@ describe('TicketsService (integration)', () => {
 
     await service.voidTicket(ticket.id);
 
-    const dbTicket = await testPrisma.ticket.findUnique({ where: { id: ticket.id } });
+    const dbTicket = await testPrisma.ticket.findUnique({
+      where: { id: ticket.id },
+    });
     expect(dbTicket?.status).toBe('VOID');
 
-    const freshType = await testPrisma.ticketType.findUnique({ where: { id: ticketType.id } });
+    const freshType = await testPrisma.ticketType.findUnique({
+      where: { id: ticketType.id },
+    });
     expect(freshType?.quantityRemaining).toBe(5); // unchanged — ticket was already consumed
   });
 
   it('voidTicket throws when ticket is already VOID', async () => {
     const ticketType = await createTestTicketType(event);
-    const ticket = await createTestTicket(user, event, ticketType, { status: 'VOID' });
+    const ticket = await createTestTicket(user, event, ticketType, {
+      status: 'VOID',
+    });
 
-    await expect(service.voidTicket(ticket.id)).rejects.toThrow(/already voided/i);
+    await expect(service.voidTicket(ticket.id)).rejects.toThrow(
+      /already voided/i,
+    );
   });
 
   it('voidTicket throws for unknown ticket id', async () => {
-    await expect(service.voidTicket('nonexistent-id')).rejects.toThrow(/not found/i);
+    await expect(service.voidTicket('nonexistent-id')).rejects.toThrow(
+      /not found/i,
+    );
   });
 
   // ─── cancelTicket ─────────────────────────────────────────────────────────────
@@ -172,10 +195,14 @@ describe('TicketsService (integration)', () => {
 
     await service.cancelTicket(user.id, event.id);
 
-    const tickets = await testPrisma.ticket.findMany({ where: { userId: user.id, eventId: event.id } });
+    const tickets = await testPrisma.ticket.findMany({
+      where: { userId: user.id, eventId: event.id },
+    });
     expect(tickets[0].status).toBe('VOID');
 
-    const freshType = await testPrisma.ticketType.findUnique({ where: { id: ticketType.id } });
+    const freshType = await testPrisma.ticketType.findUnique({
+      where: { id: ticketType.id },
+    });
     expect(freshType?.quantityRemaining).toBe(5); // 4 + 1
     expect(freshType?.isSoldOut).toBe(false);
   });
@@ -187,10 +214,14 @@ describe('TicketsService (integration)', () => {
       checkedInAt: new Date(),
     });
 
-    await expect(service.cancelTicket(user.id, event.id)).rejects.toThrow(/already been used/i);
+    await expect(service.cancelTicket(user.id, event.id)).rejects.toThrow(
+      /already been used/i,
+    );
   });
 
   it('cancelTicket throws when no ticket exists', async () => {
-    await expect(service.cancelTicket(user.id, event.id)).rejects.toThrow(/no ticket found/i);
+    await expect(service.cancelTicket(user.id, event.id)).rejects.toThrow(
+      /no ticket found/i,
+    );
   });
 });

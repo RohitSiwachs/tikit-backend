@@ -34,10 +34,14 @@ export class CampaignScheduler {
     for (const campaign of dueCampaigns) {
       try {
         await this.campaignsService.triggerSend(campaign.id);
-        this.logger.log(`Scheduler: triggered campaign "${campaign.title}" (${campaign.id})`);
+        this.logger.log(
+          `Scheduler: triggered campaign "${campaign.title}" (${campaign.id})`,
+        );
       } catch (err) {
         // triggerSend throws if the campaign is already processing — that's fine
-        this.logger.error(`Scheduler: failed to trigger campaign ${campaign.id}: ${err.message}`);
+        this.logger.error(
+          `Scheduler: failed to trigger campaign ${campaign.id}: ${err.message}`,
+        );
       }
     }
   }

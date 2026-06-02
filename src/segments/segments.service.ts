@@ -18,7 +18,8 @@ export class SegmentsService {
 
   async findOne(id: string) {
     const segment = await this.prisma.segment.findUnique({ where: { id } });
-    if (!segment) throw new NotFoundException(`Segment with ID ${id} not found`);
+    if (!segment)
+      throw new NotFoundException(`Segment with ID ${id} not found`);
     return segment;
   }
 

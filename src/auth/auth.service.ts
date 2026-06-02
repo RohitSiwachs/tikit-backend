@@ -54,7 +54,7 @@ const SAFE_USER_SELECT = {
 
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
-const OTP_COOLDOWN_MS = 60 * 1000;           // 60 seconds between OTP sends
+const OTP_COOLDOWN_MS = 60 * 1000; // 60 seconds between OTP sends
 const MAX_OTP_ATTEMPTS = 5;
 const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
@@ -75,7 +75,12 @@ export class AuthService {
     role: string;
     schoolId: string | null;
   }) {
-    return { sub: user.id, email: user.email, role: user.role, schoolId: user.schoolId };
+    return {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      schoolId: user.schoolId,
+    };
   }
 
   private async issueTokenPair(
@@ -84,7 +89,12 @@ export class AuthService {
     role: string,
     schoolId: string | null,
   ) {
-    const payload = this.buildTokenPayload({ id: userId, email, role, schoolId });
+    const payload = this.buildTokenPayload({
+      id: userId,
+      email,
+      role,
+      schoolId,
+    });
     const accessToken = this.jwtService.sign(payload);
 
     const rawRefreshToken = crypto.randomBytes(40).toString('hex');
@@ -115,7 +125,9 @@ export class AuthService {
 
     // Check if account is temporarily locked
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      const waitMins = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
+      const waitMins = Math.ceil(
+        (user.lockedUntil.getTime() - Date.now()) / 60_000,
+      );
       throw new UnauthorizedException(
         `Account locked. Try again in ${waitMins} minute(s).`,
       );
@@ -148,7 +160,12 @@ export class AuthService {
       });
     }
 
-    const tokens = await this.issueTokenPair(user.id, user.email, user.role, user.schoolId);
+    const tokens = await this.issueTokenPair(
+      user.id,
+      user.email,
+      user.role,
+      user.schoolId,
+    );
 
     return {
       access_token: tokens.accessToken,
@@ -170,13 +187,16 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const { schoolCode, password, ...userData } = dto;
 
-    const school = await this.prisma.school.findUnique({ where: { schoolCode } });
+    const school = await this.prisma.school.findUnique({
+      where: { schoolCode },
+    });
     if (!school) throw new BadRequestException('Invalid school code');
 
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
-    if (existing) throw new BadRequestException('Email or username already taken');
+    if (existing)
+      throw new BadRequestException('Email or username already taken');
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -192,9 +212,11 @@ export class AuthService {
       select: SAFE_USER_SELECT,
     });
 
-    this.emailsService.sendWelcomeEmail(user.email, user.displayName).catch((err) => {
-      this.logger.error('Failed to send welcome email', err.stack);
-    });
+    this.emailsService
+      .sendWelcomeEmail(user.email, user.displayName)
+      .catch((err) => {
+        this.logger.error('Failed to send welcome email', err.stack);
+      });
 
     return user;
   }
@@ -204,7 +226,13 @@ export class AuthService {
       where: { token: rawRefreshToken },
       include: {
         user: {
-          select: { id: true, email: true, role: true, schoolId: true, deletedAt: true },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            schoolId: true,
+            deletedAt: true,
+          },
         },
       },
     });
@@ -230,7 +258,10 @@ export class AuthService {
       stored.user.schoolId,
     );
 
-    return { access_token: tokens.accessToken, refresh_token: tokens.refreshToken };
+    return {
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    };
   }
 
   async logout(rawRefreshToken: string) {
@@ -253,7 +284,14 @@ export class AuthService {
   async verifySchool(dto: VerifySchoolDto) {
     const school = await this.prisma.school.findUnique({
       where: { schoolCode: dto.schoolCode },
-      select: { id: true, name: true, city: true, logoUrl: true, coverUrl: true, schoolCode: true },
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        logoUrl: true,
+        coverUrl: true,
+        schoolCode: true,
+      },
     });
     if (!school) throw new BadRequestException('Invalid school code');
     return school;
@@ -301,7 +339,9 @@ export class AuthService {
 
     if (elksUsername && elksPassword && user.phone) {
       try {
-        const auth = Buffer.from(`${elksUsername}:${elksPassword}`).toString('base64');
+        const auth = Buffer.from(`${elksUsername}:${elksPassword}`).toString(
+          'base64',
+        );
         const body = new URLSearchParams({
           from: 'TiKit',
           to: user.phone,
@@ -330,7 +370,9 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: dto.userId },
+    });
     if (!user) throw new BadRequestException('User not found');
     if (user.isVerified) throw new BadRequestException('User already verified');
     if (!user.otpCode) throw new BadRequestException('No OTP requested');
@@ -345,7 +387,9 @@ export class AuthService {
         where: { id: user.id },
         data: { otpCode: null, otpExpiresAt: null, otpAttempts: 0 },
       });
-      throw new BadRequestException('Too many failed attempts — please request a new OTP');
+      throw new BadRequestException(
+        'Too many failed attempts — please request a new OTP',
+      );
     }
 
     const otpMatch = await bcrypt.compare(dto.otpCode, user.otpCode);
@@ -360,7 +404,13 @@ export class AuthService {
 
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { isVerified: true, otpCode: null, otpExpiresAt: null, otpAttempts: 0, otpSentAt: null },
+      data: {
+        isVerified: true,
+        otpCode: null,
+        otpExpiresAt: null,
+        otpAttempts: 0,
+        otpSentAt: null,
+      },
     });
 
     return { message: 'Phone verified successfully' };
@@ -368,7 +418,9 @@ export class AuthService {
 
   async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
     // Constant-time response regardless of whether the email exists — prevents enumeration
-    const RESPONSE = { message: 'If that email is registered, a reset link has been sent.' };
+    const RESPONSE = {
+      message: 'If that email is registered, a reset link has been sent.',
+    };
 
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -379,7 +431,10 @@ export class AuthService {
 
     const rawToken = crypto.randomBytes(32).toString('hex');
     // Store only the SHA-256 hash — the raw token is only ever in the email link
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -396,13 +451,18 @@ export class AuthService {
     // Fire-and-forget — timing must not reveal whether the email exists
     this.emailsService
       .sendPasswordResetEmail(dto.email, user.displayName, resetUrl)
-      .catch((err) => this.logger.error('Password reset email failed', err.stack));
+      .catch((err) =>
+        this.logger.error('Password reset email failed', err.stack),
+      );
 
     return RESPONSE;
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const tokenHash = crypto.createHash('sha256').update(dto.token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(dto.token)
+      .digest('hex');
 
     const user = await this.prisma.user.findFirst({
       where: {

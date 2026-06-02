@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+} from '@nestjs/common';
 import { ClassesService } from './classes.service';
 import { CreateClassDto, UpdateClassDto } from './dto/class.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';

@@ -1,8 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { generateQrToken, generateTicketCode } from '../tickets/tickets.service';
-import { CreateEventDto, UpdateEventDto, CreateTicketTypeDto, UpdateTicketTypeDto } from './dto/create-event.dto';
+import {
+  generateQrToken,
+  generateTicketCode,
+} from '../tickets/tickets.service';
+import {
+  CreateEventDto,
+  UpdateEventDto,
+  CreateTicketTypeDto,
+  UpdateTicketTypeDto,
+} from './dto/create-event.dto';
 
 @Injectable()
 export class EventsService {
@@ -10,8 +24,14 @@ export class EventsService {
 
   async create(dto: CreateEventDto, requestingSchoolId?: string | null) {
     // Non-admin users can only create events for their own school
-    if (requestingSchoolId && dto.schoolId && dto.schoolId !== requestingSchoolId) {
-      throw new ForbiddenException('You can only create events for your own school');
+    if (
+      requestingSchoolId &&
+      dto.schoolId &&
+      dto.schoolId !== requestingSchoolId
+    ) {
+      throw new ForbiddenException(
+        'You can only create events for your own school',
+      );
     }
     const { ticketTypes, connectedSchools, ...eventData } = dto;
     return this.prisma.event.create({
@@ -81,13 +101,15 @@ export class EventsService {
         school: { select: { id: true, name: true, logoUrl: true } },
         ticketTypes: true,
         _count: {
-          select: { tickets: true, likes: true, comments: true }
+          select: { tickets: true, likes: true, comments: true },
         },
-        likes: requestingUserId ? { where: { userId: requestingUserId } } : false,
+        likes: requestingUserId
+          ? { where: { userId: requestingUserId } }
+          : false,
         tickets: requestingUserId
           ? {
               where: { userId: requestingUserId },
-              select: { id: true, status: true }
+              select: { id: true, status: true },
             }
           : false,
       },
@@ -95,23 +117,31 @@ export class EventsService {
 
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
 
-    const totalCapacity = event.ticketTypes.reduce((acc, tt) => acc + tt.quantityTotal, 0);
-    const soldTickets = event.ticketTypes.reduce((acc, tt) => acc + (tt.quantityTotal - tt.quantityRemaining), 0);
+    const totalCapacity = event.ticketTypes.reduce(
+      (acc, tt) => acc + tt.quantityTotal,
+      0,
+    );
+    const soldTickets = event.ticketTypes.reduce(
+      (acc, tt) => acc + (tt.quantityTotal - tt.quantityRemaining),
+      0,
+    );
 
     // Friends attending — only if caller is authenticated
     let friendsAttending: any[] = [];
     if (requestingUserId) {
       const user = await this.prisma.user.findUnique({
         where: { id: requestingUserId },
-        select: { following: { select: { id: true } } }
+        select: { following: { select: { id: true } } },
       });
       if (user) {
-        const followingIds = user.following.map(f => f.id);
+        const followingIds = user.following.map((f) => f.id);
         const friendTickets = await this.prisma.ticket.findMany({
           where: { eventId: id, userId: { in: followingIds } },
-          include: { user: { select: { id: true, displayName: true, avatarUrl: true } } },
+          include: {
+            user: { select: { id: true, displayName: true, avatarUrl: true } },
+          },
         });
-        friendsAttending = friendTickets.map(t => t.user);
+        friendsAttending = friendTickets.map((t) => t.user);
       }
     }
 
@@ -132,10 +162,14 @@ export class EventsService {
     };
   }
 
-  async update(id: string, dto: UpdateEventDto, requestingSchoolId?: string | null) {
+  async update(
+    id: string,
+    dto: UpdateEventDto,
+    requestingSchoolId?: string | null,
+  ) {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const { ticketTypes, connectedSchools, ...updateData } = dto;
-    
+
     const data: any = { ...updateData };
     if (updateData.startsAt) data.startsAt = new Date(updateData.startsAt);
     if (updateData.endsAt) data.endsAt = new Date(updateData.endsAt);
@@ -150,13 +184,13 @@ export class EventsService {
       data,
       include: {
         connectedSchools: true,
-      }
+      },
     });
   }
 
   async getAttendees(
     id: string,
-    query?: { search?: string; status?: string; page?: number; limit?: number }
+    query?: { search?: string; status?: string; page?: number; limit?: number },
   ) {
     const search = query?.search;
     const status = query?.status;
@@ -180,9 +214,9 @@ export class EventsService {
               { firstName: { contains: search, mode: 'insensitive' } },
               { lastName: { contains: search, mode: 'insensitive' } },
               { email: { contains: search, mode: 'insensitive' } },
-            ]
-          }
-        }
+            ],
+          },
+        },
       ];
     }
 
@@ -206,8 +240,8 @@ export class EventsService {
             },
           },
         },
-        orderBy: { user: { displayName: 'asc' } }
-      })
+        orderBy: { user: { displayName: 'asc' } },
+      }),
     ]);
 
     const attendees = tickets.map((t) => ({
@@ -231,7 +265,7 @@ export class EventsService {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
-      }
+      },
     };
   }
 
@@ -259,7 +293,13 @@ export class EventsService {
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
 
-    const { id: oldId, createdAt, ticketTypes, connectedSchools, ...eventData } = eventToDuplicate;
+    const {
+      id: oldId,
+      createdAt,
+      ticketTypes,
+      connectedSchools,
+      ...eventData
+    } = eventToDuplicate;
 
     return this.prisma.event.create({
       data: {
@@ -268,10 +308,10 @@ export class EventsService {
         isPublished: false,
         status: 'draft',
         connectedSchools: {
-          connect: connectedSchools.map(s => ({ id: s.id })),
+          connect: connectedSchools.map((s) => ({ id: s.id })),
         },
         ticketTypes: {
-          create: ticketTypes.map(tt => {
+          create: ticketTypes.map((tt) => {
             const { id: oldTtId, eventId, isSoldOut, ...ttData } = tt;
             return {
               ...ttData,
@@ -299,7 +339,8 @@ export class EventsService {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
-    if (event.isCancelled) throw new BadRequestException('Cannot publish a cancelled event');
+    if (event.isCancelled)
+      throw new BadRequestException('Cannot publish a cancelled event');
     return this.prisma.event.update({
       where: { id },
       data: { isPublished: true, status: 'published' },
@@ -314,22 +355,35 @@ export class EventsService {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const event = await this.prisma.event.findUnique({ where: { id } });
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
-    if (event.isCancelled) throw new BadRequestException('Event is already cancelled');
+    if (event.isCancelled)
+      throw new BadRequestException('Event is already cancelled');
     return this.prisma.event.update({
       where: { id },
       data: { isCancelled: true, isPublished: false, status: 'cancelled' },
     });
   }
 
-  private async assertSchoolOwnership(eventId: string, requestingSchoolId: string | null) {
+  private async assertSchoolOwnership(
+    eventId: string,
+    requestingSchoolId: string | null,
+  ) {
     if (!requestingSchoolId) return; // TIKIT_ADMIN has no schoolId — always allowed
-    const event = await this.prisma.event.findUnique({ where: { id: eventId }, select: { schoolId: true } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { schoolId: true },
+    });
     if (event && event.schoolId !== requestingSchoolId) {
-      throw new ForbiddenException('You can only manage events belonging to your school');
+      throw new ForbiddenException(
+        'You can only manage events belonging to your school',
+      );
     }
   }
 
-  async createTicketType(eventId: string, dto: CreateTicketTypeDto, requestingSchoolId?: string | null) {
+  async createTicketType(
+    eventId: string,
+    dto: CreateTicketTypeDto,
+    requestingSchoolId?: string | null,
+  ) {
     await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.create({
       data: {
@@ -340,26 +394,46 @@ export class EventsService {
     });
   }
 
-  async updateTicketType(ticketTypeId: string, dto: UpdateTicketTypeDto, requestingSchoolId?: string | null) {
-    const tt = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId }, select: { eventId: true } });
-    if (tt) await this.assertSchoolOwnership(tt.eventId, requestingSchoolId ?? null);
+  async updateTicketType(
+    ticketTypeId: string,
+    dto: UpdateTicketTypeDto,
+    requestingSchoolId?: string | null,
+  ) {
+    const tt = await this.prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+      select: { eventId: true },
+    });
+    if (tt)
+      await this.assertSchoolOwnership(tt.eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.update({
       where: { id: ticketTypeId },
       data: dto,
     });
   }
 
-  async removeTicketType(eventId: string, ticketTypeId: string, requestingSchoolId?: string | null) {
+  async removeTicketType(
+    eventId: string,
+    ticketTypeId: string,
+    requestingSchoolId?: string | null,
+  ) {
     await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
     return this.prisma.ticketType.delete({
       where: { id: ticketTypeId },
     });
   }
 
-  async markTicketTypeSoldOut(eventId: string, ticketTypeId: string, isSoldOut: boolean, requestingSchoolId?: string | null) {
+  async markTicketTypeSoldOut(
+    eventId: string,
+    ticketTypeId: string,
+    isSoldOut: boolean,
+    requestingSchoolId?: string | null,
+  ) {
     await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
-    const tt = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
-    if (!tt || tt.eventId !== eventId) throw new NotFoundException('Ticket type not found for this event');
+    const tt = await this.prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+    });
+    if (!tt || tt.eventId !== eventId)
+      throw new NotFoundException('Ticket type not found for this event');
 
     return this.prisma.ticketType.update({
       where: { id: ticketTypeId },
@@ -370,15 +444,20 @@ export class EventsService {
   // --- EVENT DETAIL FLOW ---
 
   async likeEvent(eventId: string, userId: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new NotFoundException(`Event with ID ${eventId} not found`);
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
+    if (!event)
+      throw new NotFoundException(`Event with ID ${eventId} not found`);
 
     const existing = await this.prisma.eventLike.findUnique({
-      where: { eventId_userId: { eventId, userId } }
+      where: { eventId_userId: { eventId, userId } },
     });
 
     if (existing) {
-      await this.prisma.eventLike.delete({ where: { eventId_userId: { eventId, userId } } });
+      await this.prisma.eventLike.delete({
+        where: { eventId_userId: { eventId, userId } },
+      });
       return { message: 'Unliked', liked: false };
     }
 
@@ -387,14 +466,17 @@ export class EventsService {
   }
 
   async addComment(eventId: string, userId: string, body: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new NotFoundException(`Event with ID ${eventId} not found`);
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
+    if (!event)
+      throw new NotFoundException(`Event with ID ${eventId} not found`);
 
     return this.prisma.eventComment.create({
       data: { eventId, userId, body },
       include: {
-        user: { select: { id: true, displayName: true, avatarUrl: true } }
-      }
+        user: { select: { id: true, displayName: true, avatarUrl: true } },
+      },
     });
   }
 
@@ -402,7 +484,7 @@ export class EventsService {
     return this.prisma.eventComment.findMany({
       where: { eventId },
       include: {
-        user: { select: { id: true, displayName: true, avatarUrl: true } }
+        user: { select: { id: true, displayName: true, avatarUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -413,14 +495,21 @@ export class EventsService {
   }
 
   async cancelRsvp(eventId: string, userId: string) {
-    const ticket = await this.prisma.ticket.findFirst({ where: { userId, eventId } });
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { userId, eventId },
+    });
     if (!ticket) throw new NotFoundException('No ticket found for this event');
     if (ticket.status === 'CHECKED_IN') {
-      throw new BadRequestException('Cannot cancel a ticket that has already been used');
+      throw new BadRequestException(
+        'Cannot cancel a ticket that has already been used',
+      );
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.ticket.update({ where: { id: ticket.id }, data: { status: 'VOID' } });
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { status: 'VOID' },
+      });
       await tx.ticketType.update({
         where: { id: ticket.ticketTypeId },
         data: { quantityRemaining: { increment: 1 }, isSoldOut: false },
@@ -433,38 +522,55 @@ export class EventsService {
   async fetchFreeTicket(eventId: string, userId: string, userSchoolId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: { ticketTypes: true }
+      include: { ticketTypes: true },
     });
 
-    if (!event) throw new NotFoundException(`Event with ID ${eventId} not found`);
+    if (!event)
+      throw new NotFoundException(`Event with ID ${eventId} not found`);
 
     if (event.eventType !== 'INTERNAL') {
-      throw new BadRequestException('Free tickets can only be fetched for internal events. External events redirect to ticket provider.');
+      throw new BadRequestException(
+        'Free tickets can only be fetched for internal events. External events redirect to ticket provider.',
+      );
     }
 
     // Host-school check: user.schoolId must match event.schoolId
     const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
 
     if (!isHostSchoolStudent) {
-      throw new ForbiddenException('Only host-school students can claim free tickets for internal events');
+      throw new ForbiddenException(
+        'Only host-school students can claim free tickets for internal events',
+      );
     }
 
     // Find the first available ticket type marked free for host-school students
     const freeTicketType = event.ticketTypes.find(
-      tt => tt.freeForHostSchool && tt.quantityRemaining > 0 && !tt.isSoldOut
+      (tt) => tt.freeForHostSchool && tt.quantityRemaining > 0 && !tt.isSoldOut,
     );
-    if (!freeTicketType) throw new BadRequestException('No ticket types are available for free host-school claim');
+    if (!freeTicketType)
+      throw new BadRequestException(
+        'No ticket types are available for free host-school claim',
+      );
 
     const ticket = await this.prisma.$transaction(async (tx) => {
       // Re-read inside transaction for consistent state
-      const freshType = await tx.ticketType.findUnique({ where: { id: freeTicketType.id } });
-      if (!freshType || freshType.isSoldOut || freshType.quantityRemaining <= 0) {
+      const freshType = await tx.ticketType.findUnique({
+        where: { id: freeTicketType.id },
+      });
+      if (
+        !freshType ||
+        freshType.isSoldOut ||
+        freshType.quantityRemaining <= 0
+      ) {
         throw new BadRequestException('Tickets are sold out');
       }
 
       // Duplicate check inside transaction — DB @@unique([userId, eventId]) is the final guard
-      const existing = await tx.ticket.findFirst({ where: { userId, eventId } });
-      if (existing) throw new ConflictException('You already have a ticket for this event');
+      const existing = await tx.ticket.findFirst({
+        where: { userId, eventId },
+      });
+      if (existing)
+        throw new ConflictException('You already have a ticket for this event');
 
       const updated = await tx.ticketType.update({
         where: { id: freeTicketType.id },
@@ -472,7 +578,10 @@ export class EventsService {
       });
 
       if (updated.quantityRemaining === 0) {
-        await tx.ticketType.update({ where: { id: freeTicketType.id }, data: { isSoldOut: true } });
+        await tx.ticketType.update({
+          where: { id: freeTicketType.id },
+          data: { isSoldOut: true },
+        });
       }
 
       return tx.ticket.create({
@@ -495,8 +604,11 @@ export class EventsService {
   }
 
   async getExternalLink(eventId: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new NotFoundException(`Event with ID ${eventId} not found`);
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
+    if (!event)
+      throw new NotFoundException(`Event with ID ${eventId} not found`);
 
     if (event.eventType !== 'EXTERNAL') {
       throw new BadRequestException('This is not an external event');
@@ -511,28 +623,38 @@ export class EventsService {
   // --- MULTI-SCHOOL EVENT CONNECTIONS ---
 
   async requestConnection(eventId: string, requestingSchoolId: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
     if (!event) {
       throw new NotFoundException(`Event with ID ${eventId} not found`);
     }
 
     if (event.schoolId === requestingSchoolId) {
-      throw new BadRequestException('School cannot request connection to its own event');
+      throw new BadRequestException(
+        'School cannot request connection to its own event',
+      );
     }
 
     const existingRequest = await this.prisma.eventConnectionRequest.findFirst({
-      where: { eventId, requestingSchoolId, status: { in: ['pending', 'approved'] } }
+      where: {
+        eventId,
+        requestingSchoolId,
+        status: { in: ['pending', 'approved'] },
+      },
     });
 
     if (existingRequest) {
-      throw new BadRequestException(`Connection request already exists with status: ${existingRequest.status}`);
+      throw new BadRequestException(
+        `Connection request already exists with status: ${existingRequest.status}`,
+      );
     }
 
     return this.prisma.eventConnectionRequest.create({
       data: {
         eventId,
         requestingSchoolId,
-      }
+      },
     });
   }
 
@@ -540,15 +662,19 @@ export class EventsService {
     return this.prisma.eventConnectionRequest.findMany({
       where: { eventId },
       include: {
-        requestingSchool: { select: { name: true, slug: true } }
-      }
+        requestingSchool: { select: { name: true, slug: true } },
+      },
     });
   }
 
   async respondToConnectionRequest(requestId: string, status: string) {
-    const request = await this.prisma.eventConnectionRequest.findUnique({ where: { id: requestId } });
+    const request = await this.prisma.eventConnectionRequest.findUnique({
+      where: { id: requestId },
+    });
     if (!request) {
-      throw new NotFoundException(`Connection request with ID ${requestId} not found`);
+      throw new NotFoundException(
+        `Connection request with ID ${requestId} not found`,
+      );
     }
 
     if (status === 'approved') {
@@ -557,9 +683,9 @@ export class EventsService {
         where: { id: request.eventId },
         data: {
           connectedSchools: {
-            connect: { id: request.requestingSchoolId }
-          }
-        }
+            connect: { id: request.requestingSchoolId },
+          },
+        },
       });
     } else if (status === 'rejected') {
       // If they were previously connected, we might want to disconnect them, but here we just update request status
@@ -568,7 +694,7 @@ export class EventsService {
 
     return this.prisma.eventConnectionRequest.update({
       where: { id: requestId },
-      data: { status }
+      data: { status },
     });
   }
 }

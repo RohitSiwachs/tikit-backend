@@ -3,7 +3,13 @@ import { ClassesService } from './classes.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
-  class: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  class: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 describe('ClassesService', () => {

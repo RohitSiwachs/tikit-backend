@@ -9,7 +9,13 @@ import { APP_GUARD } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
 import { BullBoardModule } from '@bull-board/nestjs';
 import { ExpressAdapter } from '@bull-board/express';
-import { databaseConfig, jwtConfig, s3Config, resendConfig, redisConfig } from './config/index';
+import {
+  databaseConfig,
+  jwtConfig,
+  s3Config,
+  resendConfig,
+  redisConfig,
+} from './config/index';
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -75,10 +81,16 @@ import { AppController } from './app.controller';
     // ─── Structured logging ────────────────────────────────
     LoggerModule.forRoot({
       pinoHttp: {
-        level: process.env.LOG_LEVEL ?? (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
-        transport: process.env.NODE_ENV !== 'production'
-          ? { target: 'pino-pretty', options: { singleLine: true, colorize: true } }
-          : undefined,
+        level:
+          process.env.LOG_LEVEL ??
+          (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: { singleLine: true, colorize: true },
+              }
+            : undefined,
         genReqId: (req) =>
           (req.headers['x-request-id'] as string) ?? crypto.randomUUID(),
         serializers: {
@@ -93,8 +105,8 @@ import { AppController } from './app.controller';
     ThrottlerModule.forRoot([
       {
         name: 'default',
-        ttl: 60000,   // 1 minute window
-        limit: 60,    // 60 requests per minute (general)
+        ttl: 60000, // 1 minute window
+        limit: 60, // 60 requests per minute (general)
       },
     ]),
 

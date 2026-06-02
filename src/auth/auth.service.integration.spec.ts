@@ -114,7 +114,10 @@ describe('AuthService (integration)', () => {
     }
 
     // Successful login resets the counter
-    const result = await service.login({ email: user.email, password: 'test-password-123' });
+    const result = await service.login({
+      email: user.email,
+      password: 'test-password-123',
+    });
     expect(result.access_token).toBeDefined();
 
     const dbUser = await testPrisma.user.findUnique({ where: { id: user.id } });
@@ -135,7 +138,10 @@ describe('AuthService (integration)', () => {
     });
 
     // Should succeed now that lockout has passed
-    const result = await service.login({ email: user.email, password: 'test-password-123' });
+    const result = await service.login({
+      email: user.email,
+      password: 'test-password-123',
+    });
     expect(result.access_token).toBeDefined();
   });
 
@@ -236,7 +242,10 @@ describe('AuthService (integration)', () => {
 
     // We can't get the raw token from DB (it's hashed), so inject one directly
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     await testPrisma.user.update({
       where: { id: user.id },
       data: {
@@ -245,11 +254,17 @@ describe('AuthService (integration)', () => {
       },
     });
 
-    const result = await service.resetPassword({ token: rawToken, newPassword: 'new-password-456' });
+    const result = await service.resetPassword({
+      token: rawToken,
+      newPassword: 'new-password-456',
+    });
     expect(result.message).toMatch(/reset successfully/i);
 
     // New password should work
-    const loginResult = await service.login({ email: user.email, password: 'new-password-456' });
+    const loginResult = await service.login({
+      email: user.email,
+      password: 'new-password-456',
+    });
     expect(loginResult.access_token).toBeDefined();
 
     // Old refresh tokens should be revoked
@@ -263,7 +278,9 @@ describe('AuthService (integration)', () => {
     expect(oldTokens.every((t) => t.revokedAt !== null)).toBe(true);
 
     // Reset token must be cleared
-    const refreshedDbUser = await testPrisma.user.findUnique({ where: { id: user.id } });
+    const refreshedDbUser = await testPrisma.user.findUnique({
+      where: { id: user.id },
+    });
     expect(refreshedDbUser?.passwordResetToken).toBeNull();
     expect(refreshedDbUser?.passwordResetExpiry).toBeNull();
   });
@@ -272,7 +289,10 @@ describe('AuthService (integration)', () => {
     const user = await createTestUser(school);
 
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     await testPrisma.user.update({
       where: { id: user.id },
       data: {
@@ -282,7 +302,10 @@ describe('AuthService (integration)', () => {
     });
 
     await expect(
-      service.resetPassword({ token: rawToken, newPassword: 'new-password-456' }),
+      service.resetPassword({
+        token: rawToken,
+        newPassword: 'new-password-456',
+      }),
     ).rejects.toThrow(/invalid or expired/i);
   });
 
@@ -292,7 +315,10 @@ describe('AuthService (integration)', () => {
 
     // Token is not in DB — already used or never set
     await expect(
-      service.resetPassword({ token: rawToken, newPassword: 'new-password-456' }),
+      service.resetPassword({
+        token: rawToken,
+        newPassword: 'new-password-456',
+      }),
     ).rejects.toThrow(/invalid or expired/i);
   });
 
@@ -300,7 +326,9 @@ describe('AuthService (integration)', () => {
     const user = await createTestUser(school);
 
     const realResponse = await service.forgotPassword({ email: user.email });
-    const fakeResponse = await service.forgotPassword({ email: 'nonexistent@test.com' });
+    const fakeResponse = await service.forgotPassword({
+      email: 'nonexistent@test.com',
+    });
 
     expect(realResponse.message).toBe(fakeResponse.message);
   });

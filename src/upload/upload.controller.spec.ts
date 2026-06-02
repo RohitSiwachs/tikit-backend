@@ -24,8 +24,16 @@ describe('UploadController', () => {
   });
 
   it('getPresignedUrl should delegate to UploadService', async () => {
-    const dto = { fileName: 'photo.jpg', fileType: 'image/jpeg', folder: 'avatars' };
-    const response = { uploadUrl: 'https://s3.example.com/upload', fileUrl: 'https://s3.example.com/photo.jpg', key: 'avatars/uuid-photo.jpg' };
+    const dto = {
+      fileName: 'photo.jpg',
+      fileType: 'image/jpeg',
+      folder: 'avatars',
+    };
+    const response = {
+      uploadUrl: 'https://s3.example.com/upload',
+      fileUrl: 'https://s3.example.com/photo.jpg',
+      key: 'avatars/uuid-photo.jpg',
+    };
     mockUploadService.generatePresignedUrl.mockResolvedValue(response);
 
     const result = await controller.getPresignedUrl(dto as any);

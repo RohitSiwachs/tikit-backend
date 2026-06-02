@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, Query, Patch, Delete, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Patch,
+  Delete,
+  Request,
+} from '@nestjs/common';
 import { CardsService } from './cards.service';
 import { CreateCardDto, GenerateCodesDto, UpdateCardDto } from './dto/card.dto';
 import { ClaimCardDto } from './dto/claim-card.dto';
@@ -89,7 +99,9 @@ export class CardsController {
 
   @Post('claim')
   @Roles(Role.STUDENT, Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Claim and activate student card using a card code' })
+  @ApiOperation({
+    summary: 'Claim and activate student card using a card code',
+  })
   claimCard(@Request() req: any, @Body() dto: ClaimCardDto) {
     return this.cardsService.claimCard(req.user.id, dto.code);
   }

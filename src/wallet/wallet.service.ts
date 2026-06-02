@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -18,7 +22,7 @@ export class WalletService {
         username: true,
         birthdate: true,
         avatarUrl: true,
-      }
+      },
     });
 
     // Get Tickets including TicketType name/desc
@@ -33,18 +37,18 @@ export class WalletService {
             endsAt: true,
             venueName: true,
             coverUrl: true,
-          }
+          },
         },
         ticketType: {
           select: {
             name: true,
             description: true,
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
-    const formattedTickets = tickets.map(ticket => ({
+    const formattedTickets = tickets.map((ticket) => ({
       id: ticket.id,
       code: ticket.code,
       qrToken: ticket.qrToken,
@@ -67,14 +71,14 @@ export class WalletService {
                 name: true,
                 slug: true,
                 logoUrl: true,
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     });
 
-    const formattedCards = cardCodes.map(code => ({
+    const formattedCards = cardCodes.map((code) => ({
       id: code.id,
       code: code.code,
       activatedAt: code.usedAt,
@@ -105,15 +109,20 @@ export class WalletService {
       });
 
       if (!cardCode) throw new NotFoundException('Card code not found');
-      if (cardCode.isUsed) throw new BadRequestException('Card code has already been used');
-      if (cardCode.card.status === 'blocked') throw new BadRequestException('This card has been blocked');
-      if (new Date() > cardCode.card.validUntil) throw new BadRequestException('This card has expired');
+      if (cardCode.isUsed)
+        throw new BadRequestException('Card code has already been used');
+      if (cardCode.card.status === 'blocked')
+        throw new BadRequestException('This card has been blocked');
+      if (new Date() > cardCode.card.validUntil)
+        throw new BadRequestException('This card has expired');
 
       return tx.cardCode.update({
         where: { id: cardCode.id },
         data: { isUsed: true, usedAt: new Date(), userId },
         include: {
-          card: { include: { school: { select: { name: true, logoUrl: true } } } },
+          card: {
+            include: { school: { select: { name: true, logoUrl: true } } },
+          },
           user: { select: { username: true } },
         },
       });

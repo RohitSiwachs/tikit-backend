@@ -61,7 +61,9 @@ export class UsersController {
 
   @Get(':id/engagement')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'View activation and engagement data for a student' })
+  @ApiOperation({
+    summary: 'View activation and engagement data for a student',
+  })
   getEngagement(@Param('id') id: string) {
     return this.usersService.getEngagementData(id);
   }
@@ -97,36 +99,29 @@ export class UsersController {
   @Get('profile/:username')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Get user profile by username' })
-  getProfile(
-    @Param('username') username: string,
-    @Request() req: any,
-  ) {
+  getProfile(@Param('username') username: string, @Request() req: any) {
     return this.usersService.getProfile(username, req.user.id);
   }
 
   @Post(':id/follow')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Send a follow request' })
-  followUser(
-    @Param('id') targetUserId: string,
-    @Request() req: any,
-  ) {
+  followUser(@Param('id') targetUserId: string, @Request() req: any) {
     return this.usersService.requestFollow(req.user.id, targetUserId);
   }
 
   @Delete(':id/follow')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Unfollow a user' })
-  unfollowUser(
-    @Param('id') targetUserId: string,
-    @Request() req: any,
-  ) {
+  unfollowUser(@Param('id') targetUserId: string, @Request() req: any) {
     return this.usersService.unfollow(req.user.id, targetUserId);
   }
 
   @Get('me/follow-requests')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({ summary: 'List incoming pending follow requests for the logged-in user' })
+  @ApiOperation({
+    summary: 'List incoming pending follow requests for the logged-in user',
+  })
   getFollowRequests(@Request() req: any) {
     return this.usersService.getIncomingFollowRequests(req.user.id);
   }
@@ -139,12 +134,18 @@ export class UsersController {
     @Body('status') status: string,
     @Request() req: any,
   ) {
-    return this.usersService.respondToFollowRequest(req.user.id, requestId, status);
+    return this.usersService.respondToFollowRequest(
+      req.user.id,
+      requestId,
+      status,
+    );
   }
 
   @Patch('notification-settings')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({ summary: 'Update notification preferences for the logged-in user' })
+  @ApiOperation({
+    summary: 'Update notification preferences for the logged-in user',
+  })
   updateNotificationSettings(
     @Request() req: any,
     @Body() dto: UpdateNotificationSettingsDto,
@@ -154,11 +155,10 @@ export class UsersController {
 
   @Patch('profile')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({ summary: 'Update profile information for the logged-in user' })
-  updateProfile(
-    @Request() req: any,
-    @Body() dto: UpdateProfileDto,
-  ) {
+  @ApiOperation({
+    summary: 'Update profile information for the logged-in user',
+  })
+  updateProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
     return this.usersService.updateProfile(req.user.id, dto);
   }
 
@@ -169,4 +169,3 @@ export class UsersController {
     return this.usersService.remove(id);
   }
 }
-

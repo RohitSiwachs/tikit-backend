@@ -1,4 +1,10 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Response } from 'express';
 
@@ -15,7 +21,8 @@ export class PrismaExceptionFilter implements ExceptionFilter {
 
     switch (exception.code) {
       case 'P2002': {
-        const fields = (exception.meta?.target as string[])?.join(', ') ?? 'field';
+        const fields =
+          (exception.meta?.target as string[])?.join(', ') ?? 'field';
         status = HttpStatus.CONFLICT;
         message = `A record with this ${fields} already exists`;
         break;
@@ -33,7 +40,9 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         message = 'Relation violation — required relation missing';
         break;
       default:
-        this.logger.error(`Unhandled Prisma error ${exception.code}: ${exception.message}`);
+        this.logger.error(
+          `Unhandled Prisma error ${exception.code}: ${exception.message}`,
+        );
     }
 
     response.status(status).json({ statusCode: status, message });

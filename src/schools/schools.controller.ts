@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
   Request,
-  ForbiddenException
+  ForbiddenException,
 } from '@nestjs/common';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
@@ -17,7 +17,11 @@ import { UpdateSchoolDto } from './dto/update-school.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
-import { UploadStudentsDto, UploadClassesDto, AssignCardsToSchoolDto } from './dto/school-actions.dto';
+import {
+  UploadStudentsDto,
+  UploadClassesDto,
+  AssignCardsToSchoolDto,
+} from './dto/school-actions.dto';
 
 @ApiTags('schools')
 @ApiBearerAuth()
@@ -57,7 +61,11 @@ export class SchoolsController {
   @Patch(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Update school info' })
-  update(@Param('id') id: string, @Body() updateSchoolDto: UpdateSchoolDto, @Request() req: any) {
+  update(
+    @Param('id') id: string,
+    @Body() updateSchoolDto: UpdateSchoolDto,
+    @Request() req: any,
+  ) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
       throw new ForbiddenException('You can only manage your own school');
     }
@@ -68,7 +76,11 @@ export class SchoolsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Upload list of students' })
   @ApiBody({ type: UploadStudentsDto })
-  uploadStudents(@Param('id') id: string, @Body() body: UploadStudentsDto, @Request() req: any) {
+  uploadStudents(
+    @Param('id') id: string,
+    @Body() body: UploadStudentsDto,
+    @Request() req: any,
+  ) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
       throw new ForbiddenException('You can only manage your own school');
     }
@@ -79,7 +91,11 @@ export class SchoolsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Upload list of classes' })
   @ApiBody({ type: UploadClassesDto })
-  uploadClasses(@Param('id') id: string, @Body() body: UploadClassesDto, @Request() req: any) {
+  uploadClasses(
+    @Param('id') id: string,
+    @Body() body: UploadClassesDto,
+    @Request() req: any,
+  ) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
       throw new ForbiddenException('You can only manage your own school');
     }
@@ -90,7 +106,11 @@ export class SchoolsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Assign cards to selected student groups' })
   @ApiBody({ type: AssignCardsToSchoolDto })
-  assignCards(@Param('id') id: string, @Body() body: AssignCardsToSchoolDto, @Request() req: any) {
+  assignCards(
+    @Param('id') id: string,
+    @Body() body: AssignCardsToSchoolDto,
+    @Request() req: any,
+  ) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
       throw new ForbiddenException('You can only manage your own school');
     }
@@ -104,4 +124,3 @@ export class SchoolsController {
     return this.schoolsService.remove(id);
   }
 }
-

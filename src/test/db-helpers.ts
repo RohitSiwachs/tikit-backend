@@ -1,10 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { generateQrToken, generateTicketCode } from '../tickets/tickets.service';
+import {
+  generateQrToken,
+  generateTicketCode,
+} from '../tickets/tickets.service';
 
 if (!process.env.TEST_DATABASE_URL) {
-  throw new Error('FATAL: TEST_DATABASE_URL is not set. Refusing to run tests against production/development database.');
+  throw new Error(
+    'FATAL: TEST_DATABASE_URL is not set. Refusing to run tests against production/development database.',
+  );
 }
 
 // A single shared Prisma client for all integration tests.

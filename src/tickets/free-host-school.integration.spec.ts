@@ -48,8 +48,12 @@ describe('freeForHostSchool (integration)', () => {
     await cleanDatabase();
     hostSchool = await createTestSchool({ name: 'Host School' });
     externalSchool = await createTestSchool({ name: 'External School' });
-    hostStudent = await createTestUser(hostSchool, { displayName: 'Host Student' });
-    externalStudent = await createTestUser(externalSchool, { displayName: 'External Student' });
+    hostStudent = await createTestUser(hostSchool, {
+      displayName: 'Host Student',
+    });
+    externalStudent = await createTestUser(externalSchool, {
+      displayName: 'External Student',
+    });
     event = await createTestEvent(hostSchool, { eventType: 'INTERNAL' });
     jest.clearAllMocks();
   });
@@ -95,7 +99,12 @@ describe('freeForHostSchool (integration)', () => {
     });
 
     await expect(
-      service.claimFreeTicket(hostStudent.id, event.id, ticketType.id, hostStudent.schoolId),
+      service.claimFreeTicket(
+        hostStudent.id,
+        event.id,
+        ticketType.id,
+        hostStudent.schoolId,
+      ),
     ).rejects.toThrow(/not available for free claim/i);
   });
 
@@ -111,7 +120,12 @@ describe('freeForHostSchool (integration)', () => {
     });
 
     await expect(
-      service.claimFreeTicket(externalStudent.id, event.id, ticketType.id, externalStudent.schoolId),
+      service.claimFreeTicket(
+        externalStudent.id,
+        event.id,
+        ticketType.id,
+        externalStudent.schoolId,
+      ),
     ).rejects.toThrow(/not available for free claim/i);
   });
 
@@ -127,7 +141,12 @@ describe('freeForHostSchool (integration)', () => {
     });
 
     await expect(
-      service.claimFreeTicket(externalStudent.id, event.id, ticketType.id, externalStudent.schoolId),
+      service.claimFreeTicket(
+        externalStudent.id,
+        event.id,
+        ticketType.id,
+        externalStudent.schoolId,
+      ),
     ).rejects.toThrow(/not available for free claim/i);
   });
 
@@ -142,9 +161,16 @@ describe('freeForHostSchool (integration)', () => {
       quantityRemaining: 5,
     });
 
-    await service.claimFreeTicket(hostStudent.id, event.id, ticketType.id, hostStudent.schoolId);
+    await service.claimFreeTicket(
+      hostStudent.id,
+      event.id,
+      ticketType.id,
+      hostStudent.schoolId,
+    );
 
-    const freshType = await testPrisma.ticketType.findUnique({ where: { id: ticketType.id } });
+    const freshType = await testPrisma.ticketType.findUnique({
+      where: { id: ticketType.id },
+    });
     expect(freshType?.quantityRemaining).toBe(4); // 5 - 1
   });
 
@@ -183,7 +209,12 @@ describe('freeForHostSchool (integration)', () => {
       quantityRemaining: 10,
     });
 
-    await service.claimFreeTicket(hostStudent.id, event.id, ticketType.id, hostStudent.schoolId);
+    await service.claimFreeTicket(
+      hostStudent.id,
+      event.id,
+      ticketType.id,
+      hostStudent.schoolId,
+    );
 
     const tickets = await testPrisma.ticket.findMany({
       where: { eventId: event.id },

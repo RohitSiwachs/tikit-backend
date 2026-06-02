@@ -23,9 +23,19 @@ const SCANNER_ROLES = new Set([
 
 @WebSocketGateway({
   cors: {
-    origin: (origin: string, cb: (err: Error | null, allow?: boolean) => void) => {
-      const allowed = (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
-      if (process.env.NODE_ENV !== 'production' || !allowed.length || allowed.includes(origin)) {
+    origin: (
+      origin: string,
+      cb: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      const allowed = (process.env.CORS_ORIGIN || '')
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+      if (
+        process.env.NODE_ENV !== 'production' ||
+        !allowed.length ||
+        allowed.includes(origin)
+      ) {
         cb(null, true);
       } else {
         cb(new Error('WebSocket CORS blocked'));
@@ -47,7 +57,10 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleConnection(client: Socket) {
     const token =
       (client.handshake.auth?.token as string) ||
-      (client.handshake.headers?.authorization as string)?.replace('Bearer ', '');
+      (client.handshake.headers?.authorization as string)?.replace(
+        'Bearer ',
+        '',
+      );
 
     if (!token) {
       this.logger.warn(`WS rejected — no token: ${client.id}`);
@@ -57,14 +70,20 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     try {
       const payload = this.jwtService.verify(token);
-      (client as any).user = { id: payload.sub, role: payload.role, schoolId: payload.schoolId };
+      (client as any).user = {
+        id: payload.sub,
+        role: payload.role,
+        schoolId: payload.schoolId,
+      };
 
       // Auto-join the user's school room so they receive school-scoped feed broadcasts
       if (payload.schoolId) {
         client.join(`school:${payload.schoolId}`);
       }
 
-      this.logger.log(`WS connected: ${client.id} (user=${payload.sub}, role=${payload.role})`);
+      this.logger.log(
+        `WS connected: ${client.id} (user=${payload.sub}, role=${payload.role})`,
+      );
     } catch {
       this.logger.warn(`WS rejected — invalid token: ${client.id}`);
       client.disconnect(true);
@@ -80,7 +99,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { event_id: string },
   ) {
-    const user = (client as any).user as { id: string; role: string } | undefined;
+    const user = (client as any).user as
+      | { id: string; role: string }
+      | undefined;
 
     if (!user?.id) {
       client.disconnect(true);
@@ -94,7 +115,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Admin/scanner roles can join any event room without a ticket check
     if (!SCANNER_ROLES.has(user.role as Role)) {
       const ticket = await this.prisma.ticket.findFirst({
-        where: { userId: user.id, eventId: data.event_id, status: { not: 'VOID' } },
+        where: {
+          userId: user.id,
+          eventId: data.event_id,
+          status: { not: 'VOID' },
+        },
         select: { id: true },
       });
 
@@ -119,17 +144,23 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // Broadcast to all clients watching a specific event (scanners + attendees who joined)
-  emitCheckinUpdate(eventId: string, payload: {
-    userId: string;
-    userName: string;
-    ticketType: string;
-    checkedInAt: Date | null;
-    totalCheckins: number;
-  }) {
+  emitCheckinUpdate(
+    eventId: string,
+    payload: {
+      userId: string;
+      userName: string;
+      ticketType: string;
+      checkedInAt: Date | null;
+      totalCheckins: number;
+    },
+  ) {
     this.server.to(`event:${eventId}`).emit('checkin:update', payload);
   }
 
-  emitTicketSold(eventId: string, payload: { ticketTypeId: string; remaining: number }) {
+  emitTicketSold(
+    eventId: string,
+    payload: { ticketTypeId: string; remaining: number },
+  ) {
     this.server.to(`event:${eventId}`).emit('ticket:sold', payload);
   }
 
@@ -138,7 +169,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`school:${schoolId}`).emit('feed:new_post', payload);
   }
 
-  emitNewComment(schoolId: string, postId: string, payload: { commentId: string; authorId: string }) {
-    this.server.to(`school:${schoolId}`).emit('feed:new_comment', { postId, ...payload });
+  emitNewComment(
+    schoolId: string,
+    postId: string,
+    payload: { commentId: string; authorId: string },
+  ) {
+    this.server
+      .to(`school:${schoolId}`)
+      .emit('feed:new_comment', { postId, ...payload });
   }
 }

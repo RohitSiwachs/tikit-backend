@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../prisma-enums';
@@ -34,7 +39,15 @@ export class UsersService {
     page?: number;
     limit?: number;
   }) {
-    const { role, schoolId, approvalStatus, className, year, page = 1, limit = 10 } = query;
+    const {
+      role,
+      schoolId,
+      approvalStatus,
+      className,
+      year,
+      page = 1,
+      limit = 10,
+    } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
@@ -42,15 +55,15 @@ export class UsersService {
     if (schoolId) where.schoolId = schoolId;
     if (approvalStatus) where.approvalStatus = approvalStatus;
     if (className) where.className = className;
-    
+
     // To filter by year, we need to find classes for that year first
     if (year && schoolId) {
       const classesForYear = await this.prisma.class.findMany({
         where: { schoolId, graduationYear: year },
-        select: { className: true }
+        select: { className: true },
       });
-      const classNames = classesForYear.map(c => c.className);
-      
+      const classNames = classesForYear.map((c) => c.className);
+
       if (className && !classNames.includes(className)) {
         where.className = 'NON_EXISTENT_CLASS_TRIGGER_EMPTY';
       } else if (!className) {
@@ -159,13 +172,13 @@ export class UsersService {
           },
         },
         followers: {
-          where: { id: requestingUserId }
+          where: { id: requestingUserId },
         },
         tickets: {
           where: {
             event: {
               startsAt: { gte: new Date() }, // optional: only upcoming events
-            }
+            },
           },
           include: {
             event: true,
@@ -175,10 +188,13 @@ export class UsersService {
       },
     });
 
-    if (!user) throw new NotFoundException(`User profile for ${username} not found`);
+    if (!user)
+      throw new NotFoundException(`User profile for ${username} not found`);
 
-    const requestingUser = await this.prisma.user.findUnique({ where: { id: requestingUserId } });
-    
+    const requestingUser = await this.prisma.user.findUnique({
+      where: { id: requestingUserId },
+    });
+
     // Privacy Rules Evaluation
     let isDetailedViewAllowed = true;
 
@@ -190,14 +206,18 @@ export class UsersService {
     }
 
     // 2. Users from other schools may only see limited information
-    if (requestingUser && requestingUser.schoolId !== user.school?.id && user.id !== requestingUserId) {
+    if (
+      requestingUser &&
+      requestingUser.schoolId !== user.school?.id &&
+      user.id !== requestingUserId
+    ) {
       if (!user.isVisibleToOtherSchools) {
         isDetailedViewAllowed = false;
       }
     }
 
     const { tickets, _count, followers, ...rest } = user;
-    
+
     if (!isDetailedViewAllowed) {
       return {
         id: user.id,
@@ -212,7 +232,8 @@ export class UsersService {
           events: _count.tickets,
         },
         isFollowing: followers.length > 0,
-        message: 'This account is private or restricts detailed view from other schools.',
+        message:
+          'This account is private or restricts detailed view from other schools.',
       };
     }
 
@@ -223,7 +244,7 @@ export class UsersService {
         friends: _count.friends,
         events: _count.tickets,
       },
-      attendingEvents: tickets.map(t => t.event),
+      attendingEvents: tickets.map((t) => t.event),
       isFollowing: followers.length > 0,
     };
   }
@@ -247,9 +268,12 @@ export class UsersService {
   }
 
   async requestFollow(senderId: string, receiverId: string) {
-    if (senderId === receiverId) throw new BadRequestException('Cannot follow yourself');
+    if (senderId === receiverId)
+      throw new BadRequestException('Cannot follow yourself');
 
-    const receiver = await this.prisma.user.findUnique({ where: { id: receiverId } });
+    const receiver = await this.prisma.user.findUnique({
+      where: { id: receiverId },
+    });
     if (!receiver) throw new NotFoundException('User not found');
 
     if (!receiver.isPrivateAccount) {
@@ -258,29 +282,36 @@ export class UsersService {
         where: { id: receiverId },
         data: {
           followers: {
-            connect: { id: senderId }
-          }
-        }
+            connect: { id: senderId },
+          },
+        },
       });
       return { message: 'Followed successfully', status: 'approved' };
     }
 
     // Create follow request for private account
     const existingReq = await this.prisma.followRequest.findFirst({
-      where: { senderId, receiverId, status: 'pending' }
+      where: { senderId, receiverId, status: 'pending' },
     });
 
-    if (existingReq) throw new ConflictException('Follow request already pending');
+    if (existingReq)
+      throw new ConflictException('Follow request already pending');
 
     await this.prisma.followRequest.create({
-      data: { senderId, receiverId }
+      data: { senderId, receiverId },
     });
 
     return { message: 'Follow request sent', status: 'pending' };
   }
 
-  async respondToFollowRequest(userId: string, requestId: string, status: string) {
-    const request = await this.prisma.followRequest.findUnique({ where: { id: requestId } });
+  async respondToFollowRequest(
+    userId: string,
+    requestId: string,
+    status: string,
+  ) {
+    const request = await this.prisma.followRequest.findUnique({
+      where: { id: requestId },
+    });
     if (!request || request.receiverId !== userId) {
       throw new NotFoundException('Follow request not found or unauthorized');
     }
@@ -290,22 +321,22 @@ export class UsersService {
         where: { id: userId },
         data: {
           followers: {
-            connect: { id: request.senderId }
-          }
-        }
+            connect: { id: request.senderId },
+          },
+        },
       });
     }
 
     return this.prisma.followRequest.update({
       where: { id: requestId },
-      data: { status }
+      data: { status },
     });
   }
 
-
-
   async unfollow(followerId: string, targetId: string) {
-    const target = await this.prisma.user.findUnique({ where: { id: targetId } });
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetId },
+    });
     if (!target) throw new NotFoundException('User not found');
 
     await this.prisma.user.update({
@@ -317,7 +348,7 @@ export class UsersService {
   }
 
   async assignCards(cardId: string, userIds: string[]) {
-    const codesToCreate = userIds.map(userId => ({
+    const codesToCreate = userIds.map((userId) => ({
       cardId,
       userId,
       code: crypto.randomBytes(4).toString('hex').toUpperCase(),
@@ -329,7 +360,9 @@ export class UsersService {
       skipDuplicates: true,
     });
 
-    return { message: `Assigned card ${cardId} to ${userIds.length} students.` };
+    return {
+      message: `Assigned card ${cardId} to ${userIds.length} students.`,
+    };
   }
 
   async getEngagementData(userId: string) {
@@ -359,8 +392,10 @@ export class UsersService {
 
     if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
 
-    const eventsAttended = user.tickets.filter(t => t.status === 'CHECKED_IN').length;
-    const cardsActivated = user.cardCodes.filter(c => c.isUsed).length;
+    const eventsAttended = user.tickets.filter(
+      (t) => t.status === 'CHECKED_IN',
+    ).length;
+    const cardsActivated = user.cardCodes.filter((c) => c.isUsed).length;
 
     return {
       userId: user.id,
@@ -368,7 +403,10 @@ export class UsersService {
       metrics: {
         totalTickets: user.tickets.length,
         eventsAttended,
-        attendanceRate: user.tickets.length > 0 ? (eventsAttended / user.tickets.length) * 100 : 0,
+        attendanceRate:
+          user.tickets.length > 0
+            ? (eventsAttended / user.tickets.length) * 100
+            : 0,
         totalCards: user.cardCodes.length,
         cardsActivated,
       },
@@ -409,8 +447,10 @@ export class UsersService {
 
     // Auto-compile displayName if firstName or lastName changes, and no explicit displayName was passed
     if (!dto.displayName && (dto.firstName || dto.lastName)) {
-      const currentFirstName = dto.firstName !== undefined ? dto.firstName : user.firstName;
-      const currentLastName = dto.lastName !== undefined ? dto.lastName : user.lastName;
+      const currentFirstName =
+        dto.firstName !== undefined ? dto.firstName : user.firstName;
+      const currentLastName =
+        dto.lastName !== undefined ? dto.lastName : user.lastName;
       const nameParts = [currentFirstName, currentLastName].filter(Boolean);
       if (nameParts.length > 0) {
         updateData.displayName = nameParts.join(' ');

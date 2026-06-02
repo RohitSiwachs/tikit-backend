@@ -12,7 +12,9 @@ export class UploadController {
 
   @Post('presigned-url')
   @Throttle({ default: { ttl: 60_000, limit: 20 } }) // 20 presigned URLs per minute per user
-  @ApiOperation({ summary: 'Get a presigned URL to upload a file directly to S3' })
+  @ApiOperation({
+    summary: 'Get a presigned URL to upload a file directly to S3',
+  })
   @ApiBody({ type: GetPresignedUrlDto })
   async getPresignedUrl(@Body() body: GetPresignedUrlDto) {
     return this.uploadService.generatePresignedUrl(body);

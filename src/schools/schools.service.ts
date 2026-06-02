@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,7 +17,9 @@ export class SchoolsService {
     const { schoolAdminPassword, ...schoolData } = createSchoolDto as any;
 
     if (!schoolData.contactEmail || !schoolAdminPassword) {
-      throw new BadRequestException('contactEmail and schoolAdminPassword are required to create a school');
+      throw new BadRequestException(
+        'contactEmail and schoolAdminPassword are required to create a school',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -22,10 +28,10 @@ export class SchoolsService {
       });
 
       const hashedPassword = await bcrypt.hash(schoolAdminPassword, 12);
-      
+
       const usernameBase = schoolData.contactEmail.split('@')[0];
       const uniqueSuffix = crypto.randomBytes(2).toString('hex');
-      
+
       await tx.user.create({
         data: {
           email: schoolData.contactEmail,
@@ -37,7 +43,7 @@ export class SchoolsService {
           schoolId: school.id,
           isVerified: true,
           approvalStatus: 'approved',
-        }
+        },
       });
 
       return school;
@@ -120,13 +126,17 @@ export class SchoolsService {
     });
   }
 
-  async uploadStudents(schoolId: string, students: { email: string, displayName: string, className?: string }[]) {
+  async uploadStudents(
+    schoolId: string,
+    students: { email: string; displayName: string; className?: string }[],
+  ) {
     const usersToCreate = await Promise.all(
       students.map(async (s) => {
         const tempPassword = crypto.randomBytes(12).toString('hex');
         const hashedPassword = await bcrypt.hash(tempPassword, 12);
         return {
-          username: s.email.split('@')[0] + crypto.randomBytes(2).toString('hex'),
+          username:
+            s.email.split('@')[0] + crypto.randomBytes(2).toString('hex'),
           email: s.email,
           displayName: s.displayName,
           className: s.className,
@@ -146,8 +156,11 @@ export class SchoolsService {
     return { message: `${students.length} students uploaded successfully.` };
   }
 
-  async uploadClasses(schoolId: string, classes: { className: string; graduationYear?: number }[]) {
-    const classesToCreate = classes.map(c => ({
+  async uploadClasses(
+    schoolId: string,
+    classes: { className: string; graduationYear?: number }[],
+  ) {
+    const classesToCreate = classes.map((c) => ({
       className: c.className,
       graduationYear: c.graduationYear || new Date().getFullYear() + 3,
       schoolId,
@@ -166,14 +179,14 @@ export class SchoolsService {
       where: {
         schoolId,
         className: { in: classNames },
-      }
+      },
     });
 
     if (students.length === 0) {
       return { message: 'No students found in the selected classes.' };
     }
 
-    const codesToCreate = students.map(student => ({
+    const codesToCreate = students.map((student) => ({
       cardId,
       userId: student.id,
       code: crypto.randomBytes(4).toString('hex').toUpperCase(),
@@ -185,6 +198,8 @@ export class SchoolsService {
       skipDuplicates: true, // In case of duplicate codes randomly generated
     });
 
-    return { message: `Assigned card ${cardId} to ${students.length} students in classes: ${classNames.join(', ')}` };
+    return {
+      message: `Assigned card ${cardId} to ${students.length} students in classes: ${classNames.join(', ')}`,
+    };
   }
 }

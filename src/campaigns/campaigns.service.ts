@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,7 +23,9 @@ const BATCH_SIZE = 100;
 @Injectable()
 export class CampaignsService {
   private readonly logger = new Logger(CampaignsService.name);
-  private readonly expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN || undefined });
+  private readonly expo = new Expo({
+    accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
+  });
 
   constructor(
     private readonly prisma: PrismaService,
@@ -52,7 +59,9 @@ export class CampaignsService {
     return this.prisma.campaign.delete({ where: { id } });
   }
 
-  async triggerSend(id: string): Promise<{ message: string; campaignId: string }> {
+  async triggerSend(
+    id: string,
+  ): Promise<{ message: string; campaignId: string }> {
     const campaign = await this.findOne(id);
 
     if (campaign.status === 'sent') {
@@ -130,12 +139,17 @@ export class CampaignsService {
 
       this.logger.log(`Campaign ${id} sent to ${totalSent} recipients`);
     } catch (err) {
-      this.logger.error(`Campaign ${id} failed after ${totalSent} sends`, err.stack);
+      this.logger.error(
+        `Campaign ${id} failed after ${totalSent} sends`,
+        err.stack,
+      );
       // Best-effort status update — don't throw, the scheduler will see 'failed' and not retry
-      await this.prisma.campaign.update({
-        where: { id },
-        data: { status: 'failed' as CampaignStatus },
-      }).catch(() => {});
+      await this.prisma.campaign
+        .update({
+          where: { id },
+          data: { status: 'failed' as CampaignStatus },
+        })
+        .catch(() => {});
     }
   }
 
@@ -171,7 +185,12 @@ export class CampaignsService {
       for (const user of batch) {
         if (!user.phone) continue;
         try {
-          const success = await this.sendSms(username, password, user.phone, campaign.body);
+          const success = await this.sendSms(
+            username,
+            password,
+            user.phone,
+            campaign.body,
+          );
           if (success) sent++;
         } catch (err) {
           this.logger.warn(`SMS to user ${user.id} failed: ${err.message}`);
@@ -203,13 +222,16 @@ export class CampaignsService {
     message: string,
   ): Promise<boolean> {
     if (!username || !password) {
-      this.logger.debug('[dev] SMS mock — set ELKS_USERNAME/PASSWORD for real delivery');
+      this.logger.debug(
+        '[dev] SMS mock — set ELKS_USERNAME/PASSWORD for real delivery',
+      );
       return true;
     }
     const res = await fetch('https://api.46elks.com/a1/sms', {
       method: 'POST',
       headers: {
-        Authorization: 'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
+        Authorization:
+          'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({ from: 'TiKit', to: phone, message }),
@@ -220,7 +242,9 @@ export class CampaignsService {
   async getReport(id: string) {
     const campaign = await this.findOne(id);
     const openRate =
-      campaign.sentCount > 0 ? (campaign.openCount / campaign.sentCount) * 100 : 0;
+      campaign.sentCount > 0
+        ? (campaign.openCount / campaign.sentCount) * 100
+        : 0;
 
     return {
       campaignId: campaign.id,

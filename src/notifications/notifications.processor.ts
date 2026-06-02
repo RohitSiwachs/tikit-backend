@@ -18,14 +18,17 @@ export class NotificationsProcessor extends WorkerHost {
     accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
   });
 
-  async process(job: Job<SendNotificationJobData>): Promise<{ sent: number; failed: number }> {
+  async process(
+    job: Job<SendNotificationJobData>,
+  ): Promise<{ sent: number; failed: number }> {
     const { tokens, title, body, data } = job.data;
 
     this.logger.log(`Job ${job.id}: processing ${tokens.length} tokens`);
 
     const validTokens = tokens.filter((token) => {
       const valid = Expo.isExpoPushToken(token);
-      if (!valid) this.logger.warn(`Job ${job.id}: invalid token skipped — ${token}`);
+      if (!valid)
+        this.logger.warn(`Job ${job.id}: invalid token skipped — ${token}`);
       return valid;
     });
 
@@ -48,7 +51,9 @@ export class NotificationsProcessor extends WorkerHost {
           if (ticket.status === 'ok') successCount++;
           else {
             failureCount++;
-            this.logger.warn(`Job ${job.id}: ticket failed — ${ticket.message}`);
+            this.logger.warn(
+              `Job ${job.id}: ticket failed — ${ticket.message}`,
+            );
           }
         });
       } catch (err) {
@@ -57,7 +62,9 @@ export class NotificationsProcessor extends WorkerHost {
       }
     }
 
-    this.logger.log(`Job ${job.id}: completed — ${successCount} sent, ${failureCount} failed`);
+    this.logger.log(
+      `Job ${job.id}: completed — ${successCount} sent, ${failureCount} failed`,
+    );
     return { sent: successCount, failed: failureCount };
   }
 

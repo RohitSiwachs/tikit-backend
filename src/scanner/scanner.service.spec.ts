@@ -7,7 +7,10 @@ const mockPrisma = {
   ticket: { findFirst: jest.fn(), update: jest.fn() },
   cardCode: { findFirst: jest.fn(), update: jest.fn() },
 };
-const mockEventsGateway = { emitToSchool: jest.fn(), server: { to: jest.fn() } };
+const mockEventsGateway = {
+  emitToSchool: jest.fn(),
+  server: { to: jest.fn() },
+};
 
 describe('ScannerService', () => {
   let service: ScannerService;

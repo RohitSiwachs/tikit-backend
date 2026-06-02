@@ -3,8 +3,13 @@ import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
 
 const mockPostsService = {
-  create: jest.fn(), findAll: jest.fn(), findOne: jest.fn(), update: jest.fn(), remove: jest.fn(),
-  likePost: jest.fn(), addComment: jest.fn(),
+  create: jest.fn(),
+  findAll: jest.fn(),
+  findOne: jest.fn(),
+  update: jest.fn(),
+  remove: jest.fn(),
+  likePost: jest.fn(),
+  addComment: jest.fn(),
 };
 
 describe('PostsController', () => {

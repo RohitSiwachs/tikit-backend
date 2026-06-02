@@ -23,7 +23,8 @@ export class ClassesService {
     const classEntity = await this.prisma.class.findUnique({
       where: { id },
     });
-    if (!classEntity) throw new NotFoundException(`Class with ID ${id} not found`);
+    if (!classEntity)
+      throw new NotFoundException(`Class with ID ${id} not found`);
     return classEntity;
   }
 

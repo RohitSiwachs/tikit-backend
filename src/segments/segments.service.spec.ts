@@ -4,7 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const mockPrisma = {
   user: { findMany: jest.fn() },
-  segment: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() },
+  segment: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
 };
 
 describe('SegmentsService', () => {

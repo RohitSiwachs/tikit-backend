@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,7 +19,9 @@ export class WalletController {
 
   @Get()
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({ summary: 'Get users wallet containing tickets and activated cards' })
+  @ApiOperation({
+    summary: 'Get users wallet containing tickets and activated cards',
+  })
   getWallet(@Request() req: any) {
     return this.walletService.getWallet(req.user.id);
   }

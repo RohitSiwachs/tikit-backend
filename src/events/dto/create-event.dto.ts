@@ -55,7 +55,10 @@ export class CreateTicketTypeDto {
   @IsString()
   deepLink?: string;
 
-  @ApiProperty({ required: false, description: 'If true, host-school students can claim this ticket for free' })
+  @ApiProperty({
+    required: false,
+    description: 'If true, host-school students can claim this ticket for free',
+  })
   @IsOptional()
   @IsBoolean()
   freeForHostSchool?: boolean;
@@ -189,7 +192,10 @@ export class UpdateTicketTypeDto {
   @IsNumber()
   quantityRemaining?: number;
 
-  @ApiProperty({ required: false, description: 'Toggle free eligibility for host-school students' })
+  @ApiProperty({
+    required: false,
+    description: 'Toggle free eligibility for host-school students',
+  })
   @IsOptional()
   @IsBoolean()
   freeForHostSchool?: boolean;

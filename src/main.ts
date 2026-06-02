@@ -42,7 +42,10 @@ async function bootstrap() {
   // In production CORS_ORIGIN must be set (enforced by env validation).
   // Multiple allowed origins can be comma-separated: https://app.tikit.se,https://admin.tikit.se
   const rawOrigins = process.env.CORS_ORIGIN || '';
-  const allowedOrigins = rawOrigins.split(',').map((o) => o.trim()).filter(Boolean);
+  const allowedOrigins = rawOrigins
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
 
   app.enableCors({
     origin: process.env.NODE_ENV === 'production' ? allowedOrigins : true,
@@ -76,11 +79,15 @@ async function bootstrap() {
     logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
     logger.log(`====================================================`);
     logger.log(`1. Localhost Swagger:   http://localhost:${port}/v1/docs`);
-    logger.log(`2. Render Live Swagger: https://tikit-backend.onrender.com/v1/docs`);
+    logger.log(
+      `2. Render Live Swagger: https://tikit-backend.onrender.com/v1/docs`,
+    );
     logger.log(`3. Backend Localhost:   http://localhost:${port}`);
     logger.log(`4. Health API:          http://localhost:${port}/v1/health`);
     logger.log(`5. Render Live Link:    https://tikit-backend.onrender.com`);
-    logger.log(`6. BullMQ Dashboard:    http://localhost:${port}/v1/admin/queues`);
+    logger.log(
+      `6. BullMQ Dashboard:    http://localhost:${port}/v1/admin/queues`,
+    );
     logger.log(`====================================================`);
   } else {
     logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);

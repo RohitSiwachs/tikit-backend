@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  Query,
+  Request,
+} from '@nestjs/common';
 import { PostsService } from './posts.service';
 import { CreatePostDto, UpdatePostDto } from './dto/post.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -22,7 +32,10 @@ export class PostsController {
 
   @Get('feed')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
-  @ApiOperation({ summary: 'Personalized feed — posts from own school + schools of events attended' })
+  @ApiOperation({
+    summary:
+      'Personalized feed — posts from own school + schools of events attended',
+  })
   getFeed(
     @Request() req: any,
     @Query('page') page?: string,
@@ -38,10 +51,7 @@ export class PostsController {
 
   @Get()
   @ApiOperation({ summary: 'List posts with optional filters' })
-  findAll(
-    @Query('schoolId') schoolId?: string,
-    @Query('type') type?: string,
-  ) {
+  findAll(@Query('schoolId') schoolId?: string, @Query('type') type?: string) {
     return this.postsService.findAll(schoolId, type);
   }
 
@@ -54,7 +64,11 @@ export class PostsController {
   @Patch(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Update a post (owner or admin only)' })
-  update(@Param('id') id: string, @Body() updatePostDto: UpdatePostDto, @Request() req: any) {
+  update(
+    @Param('id') id: string,
+    @Body() updatePostDto: UpdatePostDto,
+    @Request() req: any,
+  ) {
     const isAdmin = ADMIN_ROLES.includes(req.user.role);
     return this.postsService.update(id, updatePostDto, req.user.id, isAdmin);
   }

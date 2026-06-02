@@ -17,7 +17,9 @@ export class EmailsService {
       this.resend = new Resend(apiKey);
       this.logger.log('Resend initialized.');
     } else {
-      this.logger.warn('RESEND_API_KEY not set — emails will log to console (dev mode).');
+      this.logger.warn(
+        'RESEND_API_KEY not set — emails will log to console (dev mode).',
+      );
     }
   }
 
@@ -83,7 +85,11 @@ export class EmailsService {
     return this.sendEmail(email, `Your ticket for ${eventTitle} 🎟️`, html);
   }
 
-  async sendPasswordResetEmail(email: string, displayName: string, resetUrl: string) {
+  async sendPasswordResetEmail(
+    email: string,
+    displayName: string,
+    resetUrl: string,
+  ) {
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #eaeaea;border-radius:5px;">
         <h2 style="color:#6c5ce7;">Reset your TiKit password</h2>

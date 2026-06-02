@@ -4,7 +4,10 @@ import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendNotificationDto } from './dto/notification.dto';
 import Expo from 'expo-server-sdk';
-import { NOTIFICATIONS_QUEUE, SEND_NOTIFICATION_JOB } from './notifications.constants';
+import {
+  NOTIFICATIONS_QUEUE,
+  SEND_NOTIFICATION_JOB,
+} from './notifications.constants';
 import { SendNotificationJobData } from './notifications.processor';
 
 @Injectable()
@@ -13,7 +16,8 @@ export class NotificationsService {
 
   constructor(
     private prisma: PrismaService,
-    @InjectQueue(NOTIFICATIONS_QUEUE) private readonly notificationsQueue: Queue,
+    @InjectQueue(NOTIFICATIONS_QUEUE)
+    private readonly notificationsQueue: Queue,
   ) {}
 
   async sendToSegment(dto: SendNotificationDto) {
@@ -47,7 +51,9 @@ export class NotificationsService {
       .filter((token) => Expo.isExpoPushToken(token));
 
     if (validTokens.length === 0) {
-      this.logger.warn('sendToSegment: no valid tokens found, skipping enqueue');
+      this.logger.warn(
+        'sendToSegment: no valid tokens found, skipping enqueue',
+      );
       return {
         success: true,
         targetUserCount: users.length,
