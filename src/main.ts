@@ -80,6 +80,7 @@ async function bootstrap() {
     logger.log(`3. Backend Localhost:   http://localhost:${port}`);
     logger.log(`4. Health API:          http://localhost:${port}/v1/health`);
     logger.log(`5. Render Live Link:    https://tikit-backend.onrender.com`);
+    logger.log(`6. BullMQ Dashboard:    http://localhost:${port}/v1/admin/queues`);
     logger.log(`====================================================`);
   } else {
     logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
