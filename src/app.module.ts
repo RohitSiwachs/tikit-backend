@@ -1,16 +1,20 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
 import { LoggerModule } from 'nestjs-pino';
 import { APP_GUARD } from '@nestjs/core';
-import { databaseConfig, jwtConfig, s3Config, resendConfig } from './config/index';
+import { BullModule } from '@nestjs/bullmq';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { ExpressAdapter } from '@bull-board/express';
+import { databaseConfig, jwtConfig, s3Config, resendConfig, redisConfig } from './config/index';
 import { envValidationSchema } from './config/env.validation';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { BullBoardAuthMiddleware } from './common/middleware/bull-board-auth.middleware';
 
 // Feature Modules
 import { EventsModule } from './events/events.module';
@@ -38,10 +42,28 @@ import { AppController } from './app.controller';
     // ─── Global Config ─────────────────────────────────────
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, jwtConfig, s3Config, resendConfig],
+      load: [databaseConfig, jwtConfig, s3Config, resendConfig, redisConfig],
       envFilePath: '.env',
       validationSchema: envValidationSchema,
       validationOptions: { abortEarly: false },
+    }),
+
+    // ─── BullMQ — global Redis connection ─────────────────
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: { url: config.get<string>('redis.url') },
+      }),
+    }),
+
+    // ─── Bull Board — queue monitoring dashboard ───────────
+    // Accessible at /admin/queues (protected by BullBoardAuthMiddleware)
+    BullBoardModule.forRoot({
+      route: '/admin/queues',
+      adapter: ExpressAdapter,
+      boardOptions: {
+        uiConfig: { boardTitle: 'TiKit Queues' },
+      },
     }),
 
     // ─── Scheduler (cron jobs) ─────────────────────────────
@@ -106,4 +128,8 @@ import { AppController } from './app.controller';
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(BullBoardAuthMiddleware).forRoutes('admin/queues');
+  }
+}

@@ -1,20 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendNotificationDto } from './dto/notification.dto';
-import Expo, { ExpoPushMessage } from 'expo-server-sdk';
+import Expo from 'expo-server-sdk';
+import { NOTIFICATIONS_QUEUE, SEND_NOTIFICATION_JOB } from './notifications.constants';
+import { SendNotificationJobData } from './notifications.processor';
 
 @Injectable()
 export class NotificationsService {
-  private readonly expo = new Expo();
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @InjectQueue(NOTIFICATIONS_QUEUE) private readonly notificationsQueue: Queue,
+  ) {}
 
   async sendToSegment(dto: SendNotificationDto) {
     const { segmentFilters } = dto;
 
     const where: any = {
-      deletedAt: null, // Never send to soft-deleted (GDPR erased) users
+      deletedAt: null,
       expoPushToken: { not: null },
       notifPush: true,
     };
@@ -40,39 +46,38 @@ export class NotificationsService {
       .map((u) => u.expoPushToken!)
       .filter((token) => Expo.isExpoPushToken(token));
 
-    const messages: ExpoPushMessage[] = validTokens.map((token) => ({
-      to: token,
-      sound: 'default',
+    if (validTokens.length === 0) {
+      this.logger.warn('sendToSegment: no valid tokens found, skipping enqueue');
+      return {
+        success: true,
+        targetUserCount: users.length,
+        queued: 0,
+        skippedNoToken: users.length,
+      };
+    }
+
+    const jobData: SendNotificationJobData = {
+      tokens: validTokens,
       title: dto.title,
       body: dto.body,
       data: dto.data ?? {},
-    }));
+    };
 
-    const chunks = this.expo.chunkPushNotifications(messages);
-    let successCount = 0;
-    let failureCount = 0;
+    await this.notificationsQueue.add(SEND_NOTIFICATION_JOB, jobData, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: 100,
+      removeOnFail: 500,
+    });
 
-    for (const chunk of chunks) {
-      try {
-        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
-        tickets.forEach((ticket) => {
-          if (ticket.status === 'ok') successCount++;
-          else {
-            failureCount++;
-            this.logger.warn(`Push notification failed: ${ticket.message}`);
-          }
-        });
-      } catch (err) {
-        this.logger.error('Expo push chunk failed', err);
-        failureCount += chunk.length;
-      }
-    }
+    this.logger.log(
+      `sendToSegment: queued notification for ${validTokens.length} tokens`,
+    );
 
     return {
       success: true,
       targetUserCount: users.length,
-      sent: successCount,
-      failed: failureCount,
+      queued: validTokens.length,
       skippedNoToken: users.length - validTokens.length,
     };
   }

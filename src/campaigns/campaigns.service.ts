@@ -1,8 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 import Expo from 'expo-server-sdk';
+import { CAMPAIGNS_QUEUE, SEND_CAMPAIGN_JOB } from './campaigns.constants';
 
 // Campaign status state machine:
 // draft → processing → sent
@@ -15,11 +18,12 @@ const BATCH_SIZE = 100;
 @Injectable()
 export class CampaignsService {
   private readonly logger = new Logger(CampaignsService.name);
-  private readonly expo = new Expo();
+  private readonly expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN || undefined });
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailsService: EmailsService,
+    @InjectQueue(CAMPAIGNS_QUEUE) private readonly campaignsQueue: Queue,
   ) {}
 
   create(dto: CreateCampaignDto) {
@@ -69,14 +73,18 @@ export class CampaignsService {
       throw new BadRequestException('Campaign could not be locked for sending');
     }
 
-    // Return immediately — the actual send runs in the background.
-    // Phase 4 will replace setImmediate with a BullMQ job for persistence + retries.
-    setImmediate(() =>
-      this.runSend(id).catch((err) =>
-        this.logger.error(`Campaign ${id} background send threw unhandled error`, err.stack),
-      ),
+    await this.campaignsQueue.add(
+      SEND_CAMPAIGN_JOB,
+      { campaignId: id },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: 50,
+        removeOnFail: 200,
+      },
     );
 
+    this.logger.log(`Campaign ${id} queued for background send`);
     return { message: 'Campaign send started', campaignId: id };
   }
 

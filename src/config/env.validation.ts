@@ -39,4 +39,10 @@ export const envValidationSchema = Joi.object({
 
   // Resend Email (optional — falls back to console logger in dev)
   RESEND_API_KEY: Joi.string().optional().allow(''),
+
+  // Redis (required — BullMQ queue backend)
+  REDIS_URL: Joi.string().required(),
+
+  // Expo Push Notifications access token (optional — improves rate limits)
+  EXPO_ACCESS_TOKEN: Joi.string().optional().allow(''),
 });
