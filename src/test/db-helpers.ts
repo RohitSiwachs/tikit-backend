@@ -3,10 +3,14 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { generateQrToken, generateTicketCode } from '../tickets/tickets.service';
 
+if (!process.env.TEST_DATABASE_URL) {
+  throw new Error('FATAL: TEST_DATABASE_URL is not set. Refusing to run tests against production/development database.');
+}
+
 // A single shared Prisma client for all integration tests.
 // Tests must use TEST_DATABASE_URL — never point at a real DB.
 export const testPrisma = new PrismaClient({
-  datasources: { db: { url: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL } },
+  datasources: { db: { url: process.env.TEST_DATABASE_URL } },
 });
 
 export async function cleanDatabase() {
