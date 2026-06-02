@@ -190,6 +190,7 @@ model TicketType {
   quantityRemaining Int
   fewLeftThreshold  Int?    @default(10)
   isSoldOut         Boolean @default(false)
+  freeForHostSchool Boolean @default(false)
 
   coverUrl     String?
   sortOrder    Int       @default(1)

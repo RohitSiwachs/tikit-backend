@@ -211,7 +211,7 @@ export class EventsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: "I'm Going — RSVP & fetch free ticket (internal events)" })
   rsvp(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.rsvp(id, req.user.id);
+    return this.eventsService.rsvp(id, req.user.id, req.user.schoolId);
   }
 
   @Delete(':id/rsvp')

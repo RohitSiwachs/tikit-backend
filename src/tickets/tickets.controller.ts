@@ -19,7 +19,7 @@ export class TicketsController {
     @Body('ticketTypeId') ticketTypeId: string,
   ) {
     // Fixed: was req.user.sub (undefined) — JWT strategy maps sub → id
-    return this.ticketsService.claimFreeTicket(req.user.id, eventId, ticketTypeId);
+    return this.ticketsService.claimFreeTicket(req.user.id, eventId, ticketTypeId, req.user.schoolId);
   }
 
   @Get()

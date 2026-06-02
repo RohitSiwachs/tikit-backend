@@ -2,9 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 
-const mockAdminService = {
-  getStats: jest.fn(),
-};
+const mockAdminService = { getStats: jest.fn() };
 
 describe('AdminController', () => {
   let controller: AdminController;
@@ -23,11 +21,11 @@ describe('AdminController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('getDashboardStats should delegate to AdminService.getStats', async () => {
+  it('getStats should delegate to AdminService.getStats', async () => {
     const stats = { totalSchools: 3, totalStudents: 60, upcomingEvents: 2, activeCards: 10, checkinRate: 50 };
     mockAdminService.getStats.mockResolvedValue(stats);
 
-    const result = await controller.getDashboardStats();
+    const result = await controller.getStats();
 
     expect(mockAdminService.getStats).toHaveBeenCalledTimes(1);
     expect(result).toEqual(stats);

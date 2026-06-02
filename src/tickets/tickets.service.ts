@@ -22,13 +22,28 @@ export class TicketsService {
     private emailsService: EmailsService,
   ) {}
 
-  async claimFreeTicket(userId: string, eventId: string, ticketTypeId: string) {
+  async claimFreeTicket(userId: string, eventId: string, ticketTypeId: string, userSchoolId: string) {
     if (!userId) throw new BadRequestException('User not authenticated');
 
     const ticketType = await this.prisma.ticketType.findUnique({ where: { id: ticketTypeId } });
     if (!ticketType) throw new NotFoundException('Ticket type not found');
     if (ticketType.eventId !== eventId) throw new BadRequestException('Ticket type does not belong to this event');
-    if (ticketType.price > 0) throw new BadRequestException('This ticket is not free');
+
+    // Look up event to compare school IDs
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { schoolId: true },
+    });
+    if (!event) throw new NotFoundException('Event not found');
+
+    const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
+
+    // Eligibility: price===0 (always free) OR (freeForHostSchool AND host-school student)
+    const isFreeEligible = ticketType.price === 0 || (ticketType.freeForHostSchool && isHostSchoolStudent);
+
+    if (!isFreeEligible) {
+      throw new BadRequestException('This ticket type is not available for free claim');
+    }
 
     const ticket = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.ticket.findFirst({ where: { userId, eventId } });

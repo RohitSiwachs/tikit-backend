@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\ROHIT\\\\Desktop\\\\innoaft\\\\ticket\\\\tikit-be\\\\src\\\\auth\" -File -Recurse | Select-Object @{Name='Path'; Expression={$_.FullName -replace [regex]::Escape\\(\"c:\\\\Users\\\\ROHIT\\\\Desktop\\\\innoaft\\\\ticket\\\\tikit-be\\\\\"\\), \"\"}} | Sort-Object Path)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(grep -E \"\\\\.ts$|^d\")"
     ]
   }
 }

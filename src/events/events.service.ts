@@ -408,8 +408,8 @@ export class EventsService {
     });
   }
 
-  async rsvp(eventId: string, userId: string) {
-    return this.fetchFreeTicket(eventId, userId);
+  async rsvp(eventId: string, userId: string, userSchoolId: string) {
+    return this.fetchFreeTicket(eventId, userId, userSchoolId);
   }
 
   async cancelRsvp(eventId: string, userId: string) {
@@ -430,7 +430,7 @@ export class EventsService {
     return { message: 'RSVP cancelled and capacity restored' };
   }
 
-  async fetchFreeTicket(eventId: string, userId: string) {
+  async fetchFreeTicket(eventId: string, userId: string, userSchoolId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: { ticketTypes: true }
@@ -442,9 +442,18 @@ export class EventsService {
       throw new BadRequestException('Free tickets can only be fetched for internal events. External events redirect to ticket provider.');
     }
 
-    // Find the first available free ticket type
-    const freeTicketType = event.ticketTypes.find(tt => tt.price === 0 && tt.quantityRemaining > 0);
-    if (!freeTicketType) throw new BadRequestException('No free tickets available for this event');
+    // Host-school check: user.schoolId must match event.schoolId
+    const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
+
+    if (!isHostSchoolStudent) {
+      throw new ForbiddenException('Only host-school students can claim free tickets for internal events');
+    }
+
+    // Find the first available ticket type marked free for host-school students
+    const freeTicketType = event.ticketTypes.find(
+      tt => tt.freeForHostSchool && tt.quantityRemaining > 0 && !tt.isSoldOut
+    );
+    if (!freeTicketType) throw new BadRequestException('No ticket types are available for free host-school claim');
 
     const ticket = await this.prisma.$transaction(async (tx) => {
       // Re-read inside transaction for consistent state

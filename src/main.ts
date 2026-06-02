@@ -3,6 +3,7 @@ import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
+import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
@@ -16,8 +17,8 @@ async function bootstrap() {
   app.use(helmet());
 
   // ─── Body size limit ──────────────────────────────────
-  app.use(require('express').json({ limit: '1mb' }));
-  app.use(require('express').urlencoded({ extended: true, limit: '1mb' }));
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
 
   // ─── Global Prefix ────────────────────────────────────
   app.setGlobalPrefix('v1');
@@ -71,15 +72,15 @@ async function bootstrap() {
   await app.listen(port);
 
   if (process.env.NODE_ENV !== 'production') {
-    logger.log(`\n====================================================`);
-    logger.log(`🚀 TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
     logger.log(`====================================================`);
-    logger.log(`1. 📄 Localhost Swagger:   http://localhost:${port}/v1/docs`);
-    logger.log(`2. 🌍 Render Live Swagger: https://tikit-backend.onrender.com/v1/docs`);
-    logger.log(`3. 💻 Backend Localhost:   http://localhost:${port}`);
-    logger.log(`4. 💓 Health API:          http://localhost:${port}/v1/health`);
-    logger.log(`5. 🚀 Render Live Link:    https://tikit-backend.onrender.com`);
-    logger.log(`====================================================\n`);
+    logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
+    logger.log(`====================================================`);
+    logger.log(`1. Localhost Swagger:   http://localhost:${port}/v1/docs`);
+    logger.log(`2. Render Live Swagger: https://tikit-backend.onrender.com/v1/docs`);
+    logger.log(`3. Backend Localhost:   http://localhost:${port}`);
+    logger.log(`4. Health API:          http://localhost:${port}/v1/health`);
+    logger.log(`5. Render Live Link:    https://tikit-backend.onrender.com`);
+    logger.log(`====================================================`);
   } else {
     logger.log(`TiKit API running on port ${port} [${process.env.NODE_ENV}]`);
   }
