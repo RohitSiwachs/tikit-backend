@@ -43,7 +43,7 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ default: { ttl: 300_000, limit: 3 } }) // 3 per 5 min per IP (userId cooldown in service)
+  @Throttle({ default: { ttl: 300_000, limit: 10 } }) // 10 per 5 min per IP (userId cooldown in service)
   @Post('send-otp')
   @ApiOperation({ summary: 'Send phone verification OTP' })
   sendOtp(@Body() dto: SendOtpDto) {

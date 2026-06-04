@@ -320,9 +320,14 @@ export class AuthService {
       });
     }
 
-    const otpPlain = crypto.randomInt(100000, 999999).toString();
+    const otpPlain = crypto.randomInt(10000, 99999).toString();
     const otpHash = await bcrypt.hash(otpPlain, 10);
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
+    // forcefully print OTP to console
+    console.log(`\n========================================`);
+    console.log(`[Dev OTP] userId=${user.id} | code=${otpPlain}`);
+    console.log(`========================================\n`);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -363,7 +368,7 @@ export class AuthService {
       }
     } else if (process.env.NODE_ENV !== 'production') {
       // Development only — log OTP to console for testing
-      this.logger.debug(`[Dev OTP] userId=${user.id} code=${otpPlain}`);
+      this.logger.log(`[Dev OTP] userId=${user.id} code=${otpPlain}`);
     }
 
     return { message: 'OTP sent successfully' };

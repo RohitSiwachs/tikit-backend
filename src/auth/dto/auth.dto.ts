@@ -70,8 +70,8 @@ export class VerifyOtpDto {
 
   @ApiProperty()
   @IsString()
-  @MinLength(6)
-  @MaxLength(6)
+  @MinLength(5)
+  @MaxLength(5)
   otpCode: string;
 }
 
