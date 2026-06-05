@@ -26,9 +26,17 @@ export class SchoolsService {
       );
     }
 
+    // Generate deep link URL for this school
+    const baseUrl =
+      process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+    const deepLink = `${baseUrl}/v1/join/${schoolData.schoolCode}`;
+
     return this.prisma.$transaction(async (tx) => {
       const school = await tx.school.create({
-        data: schoolData,
+        data: {
+          ...schoolData,
+          deepLink,
+        },
       });
 
       const hashedPassword = await bcrypt.hash(schoolAdminPassword, 12);

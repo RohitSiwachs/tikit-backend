@@ -41,6 +41,7 @@ import { GatewayModule } from './gateway/gateway.module';
 import { UploadModule } from './upload/upload.module';
 import { VouchersModule } from './vouchers/vouchers.module';
 import { EmailsModule } from './emails/emails.module';
+import { DeepLinkModule } from './deep-link/deep-link.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -130,6 +131,7 @@ import { AppController } from './app.controller';
     UploadModule,
     VouchersModule,
     EmailsModule,
+    DeepLinkModule,
   ],
   controllers: [AppController],
   providers: [

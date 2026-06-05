@@ -18,6 +18,7 @@ model School {
   coverUrl           String?
   websiteUrl         String?
   schoolCode         String                   @unique
+  deepLink           String?
   isVerified         Boolean                  @default(false)
   isActive           Boolean                  @default(true)
   contactEmail       String?
