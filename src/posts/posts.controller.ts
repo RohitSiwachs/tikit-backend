@@ -43,7 +43,6 @@ export class PostsController {
   ) {
     return this.postsService.getFeed(
       req.user.id,
-      req.user.schoolId ?? null,
       page ? parseInt(page) : 1,
       limit ? parseInt(limit) : 20,
     );

@@ -120,20 +120,10 @@ export class PostsService {
     return formatPost(post);
   }
 
-  async getFeed(userId: string, schoolId: string | null, page = 1, limit = 20) {
+  async getFeed(userId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit;
 
-    const schoolIds = new Set<string>();
-    if (schoolId) schoolIds.add(schoolId);
-
-    const userTickets = await this.prisma.ticket.findMany({
-      where: { userId },
-      select: { event: { select: { schoolId: true } } },
-    });
-    userTickets.forEach((t) => schoolIds.add(t.event.schoolId));
-
     const where: any = {
-      schoolId: { in: [...schoolIds] },
       deletedAt: null,
     };
 
