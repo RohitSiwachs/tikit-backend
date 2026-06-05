@@ -113,6 +113,7 @@ model User {
   vouchers      Voucher[]
   postLikes     PostLike[]
   postComments  PostComment[]
+  pollVotes     PollVote[]
   createdAt     DateTime       @default(now())
 
   @@index([schoolId])
@@ -276,8 +277,11 @@ model Post {
   event    Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   likes    PostLike[]
   comments PostComment[]
+  pollOptions PollOption[]
+  pollVotes   PollVote[]
 
   // Soft delete
+  pollExpiresAt DateTime?
   deletedAt DateTime?
   createdAt DateTime  @default(now())
 
@@ -407,3 +411,30 @@ model EventComment {
 
   @@index([eventId])
 }
+
+model PollOption {
+  id        String     @id @default(uuid())
+  postId    String
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  text      String
+  votes     PollVote[]
+  createdAt DateTime   @default(now())
+
+  @@index([postId])
+}
+
+model PollVote {
+  id        String     @id @default(uuid())
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([postId, userId])
+  @@index([optionId])
+  @@index([userId])
+}
+

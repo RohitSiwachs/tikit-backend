@@ -29,11 +29,12 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.optional().default('http://localhost:3001'),
   }),
 
-  // AWS S3 (optional — allows boot without S3 credentials)
-  AWS_REGION: Joi.string().optional().default('eu-north-1'),
-  AWS_ACCESS_KEY_ID: Joi.string().optional().allow(''),
-  AWS_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
-  AWS_S3_BUCKET: Joi.string().optional().default('tikit-uploads'),
+  // Cloudflare R2 (S3-compatible object storage)
+  R2_ENDPOINT: Joi.string().optional().allow(''),
+  R2_ACCESS_KEY_ID: Joi.string().optional().allow(''),
+  R2_SECRET_ACCESS_KEY: Joi.string().optional().allow(''),
+  R2_BUCKET_NAME: Joi.string().optional().default('tikit-media'),
+  R2_PUBLIC_URL: Joi.string().optional().allow(''),
 
   // 46elks SMS (optional — falls back to mock in dev)
   ELKS_USERNAME: Joi.string().optional(),

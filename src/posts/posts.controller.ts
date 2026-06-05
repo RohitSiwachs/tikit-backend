@@ -51,14 +51,18 @@ export class PostsController {
 
   @Get()
   @ApiOperation({ summary: 'List posts with optional filters' })
-  findAll(@Query('schoolId') schoolId?: string, @Query('type') type?: string) {
-    return this.postsService.findAll(schoolId, type);
+  findAll(
+    @Query('schoolId') schoolId?: string,
+    @Query('type') type?: string,
+    @Request() req?: any,
+  ) {
+    return this.postsService.findAll(schoolId, type, req.user?.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get post details' })
-  findOne(@Param('id') id: string) {
-    return this.postsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req?: any) {
+    return this.postsService.findOne(id, req.user?.id);
   }
 
   @Patch(':id')
@@ -111,5 +115,16 @@ export class PostsController {
   deleteComment(@Param('commentId') commentId: string, @Request() req: any) {
     const isAdmin = ADMIN_ROLES.includes(req.user.role);
     return this.postsService.deleteComment(commentId, req.user.id, isAdmin);
+  }
+
+  @Post(':id/vote')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @ApiOperation({ summary: 'Vote on a poll post' })
+  vote(
+    @Param('id') id: string,
+    @Body('optionId') optionId: string,
+    @Request() req: any,
+  ) {
+    return this.postsService.vote(id, req.user.id, optionId);
   }
 }

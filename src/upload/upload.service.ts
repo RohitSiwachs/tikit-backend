@@ -15,6 +15,7 @@ export class UploadService {
   ) {
     this.s3 = new S3Client({
       region: s3Conf.region,
+      endpoint: s3Conf.endpoint,
       credentials: {
         accessKeyId: s3Conf.accessKeyId,
         secretAccessKey: s3Conf.secretAccessKey,
@@ -36,7 +37,9 @@ export class UploadService {
     });
 
     const upload_url = await getSignedUrl(this.s3, command, { expiresIn: 600 });
-    const file_url = `https://${this.s3Conf.bucket}.s3.${this.s3Conf.region}.amazonaws.com/${key}`;
+    const file_url = this.s3Conf.publicUrl
+      ? `${this.s3Conf.publicUrl}/${key}`
+      : `${this.s3Conf.endpoint}/${this.s3Conf.bucket}/${key}`;
 
     return { upload_url, file_url, key };
   }

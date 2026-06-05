@@ -3,17 +3,19 @@ import { UploadService } from './upload.service';
 import s3Config from '../config/s3.config';
 
 const mockS3Config = {
-  region: 'eu-north-1',
+  region: 'auto',
+  endpoint: 'https://test-account.r2.cloudflarestorage.com',
   accessKeyId: 'test-key',
   secretAccessKey: 'test-secret',
-  bucket: 'test-bucket',
+  bucket: 'tikit-media',
+  publicUrl: 'https://media.example.com',
 };
 
 // Mock the entire AWS SDK presigner so tests don't make network calls
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: jest
     .fn()
-    .mockResolvedValue('https://s3.example.com/presigned-url'),
+    .mockResolvedValue('https://r2.example.com/presigned-url'),
 }));
 
 describe('UploadService', () => {
@@ -42,9 +44,8 @@ describe('UploadService', () => {
         folder: 'avatars',
       });
 
-      expect(result.upload_url).toBe('https://s3.example.com/presigned-url');
-      expect(result.file_url).toContain('test-bucket');
-      expect(result.file_url).toContain('eu-north-1');
+      expect(result.upload_url).toBe('https://r2.example.com/presigned-url');
+      expect(result.file_url).toContain('media.example.com');
       expect(result.key).toMatch(/^avatars\/.+-photo\.jpg$/);
     });
 
@@ -55,6 +56,28 @@ describe('UploadService', () => {
       });
 
       expect(result.key).toMatch(/^uploads\//);
+    });
+
+    it('falls back to endpoint-based URL when publicUrl is not set', async () => {
+      // Create a service instance without publicUrl
+      const moduleNoPublic: TestingModule = await Test.createTestingModule({
+        providers: [
+          UploadService,
+          {
+            provide: s3Config.KEY,
+            useValue: { ...mockS3Config, publicUrl: '' },
+          },
+        ],
+      }).compile();
+
+      const svcNoPublic = moduleNoPublic.get<UploadService>(UploadService);
+      const result = await svcNoPublic.generatePresignedUrl({
+        filename: 'file.txt',
+        content_type: 'text/plain',
+      });
+
+      expect(result.file_url).toContain('r2.cloudflarestorage.com');
+      expect(result.file_url).toContain('tikit-media');
     });
   });
 });

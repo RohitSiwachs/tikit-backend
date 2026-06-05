@@ -1,5 +1,5 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsDateString } from 'class-validator';
 
 export class CreatePostDto {
   @ApiProperty()
@@ -31,6 +31,17 @@ export class CreatePostDto {
   @IsOptional()
   @IsString()
   eventId?: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  pollOptions?: string[];
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  pollExpiresAt?: string;
 }
 
 export class UpdatePostDto extends PartialType(CreatePostDto) {}
