@@ -8,10 +8,14 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
+import { EmailsService } from '../emails/emails.service';
 
 @Injectable()
 export class SchoolsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailsService: EmailsService,
+  ) {}
 
   async create(createSchoolDto: CreateSchoolDto) {
     const { schoolAdminPassword, ...schoolData } = createSchoolDto as any;
@@ -175,6 +179,14 @@ export class SchoolsService {
   }
 
   async assignCards(schoolId: string, cardId: string, classNames: string[]) {
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId, schoolId },
+    });
+
+    if (!card) {
+      throw new NotFoundException('Card not found');
+    }
+
     const students = await this.prisma.user.findMany({
       where: {
         schoolId,
@@ -196,6 +208,25 @@ export class SchoolsService {
     await this.prisma.cardCode.createMany({
       data: codesToCreate,
       skipDuplicates: true, // In case of duplicate codes randomly generated
+    });
+
+    // Send assignment emails in the background
+    Promise.allSettled(
+      students.map((student) => {
+        const studentCode = codesToCreate.find((c) => c.userId === student.id)?.code;
+        if (student.email && studentCode) {
+          return this.emailsService.sendCardAssignedEmail(
+            student.email,
+            student.displayName,
+            card.title,
+            studentCode,
+          );
+        }
+        return Promise.resolve();
+      })
+    ).catch((err) => {
+      // Catch all just in case, though allSettled handles individual rejections
+      console.error('Error sending card assignment emails:', err);
     });
 
     return {

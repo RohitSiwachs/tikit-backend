@@ -107,6 +107,28 @@ export class EmailsService {
     return this.sendEmail(email, 'Reset your TiKit password', html);
   }
 
+  async sendCardAssignedEmail(
+    email: string,
+    displayName: string,
+    cardTitle: string,
+    cardCode: string,
+  ) {
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #eaeaea;border-radius:5px;">
+        <h2 style="color:#6c5ce7;">Hej ${displayName}! 💳</h2>
+        <p>You have been assigned the <strong>${cardTitle}</strong>.</p>
+        <div style="background:#f9f9f9;padding:15px;border-radius:5px;margin:20px 0;border-left:4px solid #6c5ce7;">
+          <p style="margin:0;font-size:14px;color:#555;">Your Card Code:</p>
+          <h3 style="margin:8px 0 0;color:#333;letter-spacing:2px;">${cardCode}</h3>
+        </div>
+        <p>You can claim this card inside the TiKit app by entering the code in your Wallet.</p>
+        <hr style="border:0;border-top:1px solid #eaeaea;margin:20px 0;"/>
+        <p style="font-size:12px;color:#999;">The TiKit Team</p>
+      </div>
+    `;
+    return this.sendEmail(email, `You received a new card: ${cardTitle} 💳`, html);
+  }
+
   async sendCampaignEmail(to: string, subject: string, body: string) {
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
