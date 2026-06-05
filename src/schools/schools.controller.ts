@@ -22,6 +22,7 @@ import {
   UploadClassesDto,
   AssignCardsToSchoolDto,
 } from './dto/school-actions.dto';
+import { CreateClassDto, UpdateClassDto } from './dto/classes.dto';
 
 @ApiTags('schools')
 @ApiBearerAuth()
@@ -115,6 +116,66 @@ export class SchoolsController {
       throw new ForbiddenException('You can only manage your own school');
     }
     return this.schoolsService.assignCards(id, body.cardId, body.classNames);
+  }
+
+  // ─── Classes CRUD ─────────────────────────────────────────────────────────
+
+  @Get(':id/classes')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({ summary: 'Get all classes for a school, including students' })
+  getClasses(
+    @Param('id') id: string,
+    @Request() req: any,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only view classes for your own school');
+    }
+    return this.schoolsService.getClasses(id);
+  }
+
+  @Post(':id/classes')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Create a new class' })
+  @ApiBody({ type: CreateClassDto })
+  createClass(
+    @Param('id') id: string,
+    @Body() body: CreateClassDto,
+    @Request() req: any,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    return this.schoolsService.createClass(id, body);
+  }
+
+  @Patch(':id/classes/:classId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Update a class' })
+  @ApiBody({ type: UpdateClassDto })
+  updateClass(
+    @Param('id') id: string,
+    @Param('classId') classId: string,
+    @Body() body: UpdateClassDto,
+    @Request() req: any,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    return this.schoolsService.updateClass(id, classId, body);
+  }
+
+  @Delete(':id/classes/:classId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Delete a class' })
+  deleteClass(
+    @Param('id') id: string,
+    @Param('classId') classId: string,
+    @Request() req: any,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    return this.schoolsService.deleteClass(id, classId);
   }
 
   @Delete(':id')

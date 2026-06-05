@@ -202,4 +202,112 @@ export class SchoolsService {
       message: `Assigned card ${cardId} to ${students.length} students in classes: ${classNames.join(', ')}`,
     };
   }
+
+  // ─── Classes CRUD ─────────────────────────────────────────────────────────
+
+  async getClasses(schoolId: string) {
+    const classes = await this.prisma.class.findMany({
+      where: { schoolId },
+      orderBy: { graduationYear: 'desc' },
+    });
+
+    // Also fetch the list of students for each class
+    // Since User only has a string 'className', we fetch students matching the schoolId
+    const students = await this.prisma.user.findMany({
+      where: {
+        schoolId,
+        className: { in: classes.map((c) => c.className) },
+        role: 'STUDENT',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        displayName: true,
+        avatarUrl: true,
+        className: true,
+      },
+    });
+
+    // Group students by className and attach to each class object
+    const classData = classes.map((c) => {
+      const classStudents = students.filter((s) => s.className === c.className);
+      return {
+        ...c,
+        students: classStudents,
+        studentCount: classStudents.length,
+      };
+    });
+
+    return classData;
+  }
+
+  async createClass(schoolId: string, dto: { className: string; graduationYear: number }) {
+    const existing = await this.prisma.class.findFirst({
+      where: { schoolId, className: dto.className },
+    });
+
+    if (existing) {
+      throw new BadRequestException(`Class ${dto.className} already exists in this school.`);
+    }
+
+    return this.prisma.class.create({
+      data: {
+        schoolId,
+        className: dto.className,
+        graduationYear: dto.graduationYear,
+      },
+    });
+  }
+
+  async updateClass(schoolId: string, classId: string, dto: { className?: string; graduationYear?: number }) {
+    const existing = await this.prisma.class.findFirst({
+      where: { id: classId, schoolId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Class not found');
+    }
+
+    if (dto.className && dto.className !== existing.className) {
+      const nameTaken = await this.prisma.class.findFirst({
+        where: { schoolId, className: dto.className },
+      });
+      if (nameTaken) {
+        throw new BadRequestException(`Class name ${dto.className} is already taken.`);
+      }
+
+      // If we rename the class, we should also update the className for all students in this class
+      await this.prisma.user.updateMany({
+        where: { schoolId, className: existing.className },
+        data: { className: dto.className },
+      });
+    }
+
+    return this.prisma.class.update({
+      where: { id: classId },
+      data: dto,
+    });
+  }
+
+  async deleteClass(schoolId: string, classId: string) {
+    const existing = await this.prisma.class.findFirst({
+      where: { id: classId, schoolId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Class not found');
+    }
+
+    // Unassign students from this class
+    await this.prisma.user.updateMany({
+      where: { schoolId, className: existing.className },
+      data: { className: null },
+    });
+
+    await this.prisma.class.delete({
+      where: { id: classId },
+    });
+
+    return { message: 'Class deleted successfully' };
+  }
 }
