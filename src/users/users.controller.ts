@@ -82,6 +82,13 @@ export class UsersController {
     return this.usersService.updateApproval(id, dto.status);
   }
 
+  @Get(':id/full-details')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get complete 360-degree user details including private data, cards, and tickets' })
+  getFullDetails(@Param('id') id: string) {
+    return this.usersService.getFullDetails(id);
+  }
+
   @Get(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Get user details' })

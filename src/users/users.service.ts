@@ -124,6 +124,47 @@ export class UsersService {
     return user;
   }
 
+  async getFullDetails(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        school: true,
+        tickets: {
+          include: {
+            event: true,
+            ticketType: true,
+          },
+        },
+        cardCodes: {
+          include: {
+            card: true,
+          },
+        },
+        followers: { select: { id: true, displayName: true, username: true } },
+        following: { select: { id: true, displayName: true, username: true } },
+      },
+    });
+
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+
+    const { password, otpCode, ...userWithoutSensitiveData } = user;
+    
+    const eventsAttended = user.tickets.filter((t) => t.status === 'CHECKED_IN').length;
+    const cardsActivated = user.cardCodes.filter((c) => c.isUsed).length;
+
+    return {
+      ...userWithoutSensitiveData,
+      metrics: {
+        totalTickets: user.tickets.length,
+        eventsAttended,
+        totalCards: user.cardCodes.length,
+        cardsActivated,
+        followersCount: user.followers.length,
+        followingCount: user.following.length,
+      }
+    };
+  }
+
   async updateStatus(id: string, status: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
