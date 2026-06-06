@@ -158,7 +158,7 @@ export class CardsService {
         'This card code is assigned to another user',
       );
     }
-    if (user.schoolId && cardCode.card.schoolId !== user.schoolId) {
+    if (!user.schoolId || cardCode.card.schoolId !== user.schoolId) {
       throw new BadRequestException('This card does not belong to your school');
     }
 

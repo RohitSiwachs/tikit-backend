@@ -348,6 +348,29 @@ export class UsersService {
   }
 
   async assignCards(cardId: string, userIds: string[]) {
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      select: { schoolId: true },
+    });
+
+    if (!card) throw new NotFoundException('Card not found');
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, schoolId: true },
+    });
+
+    if (users.length !== userIds.length) {
+      throw new BadRequestException('One or more users not found');
+    }
+
+    const invalidUsers = users.filter((u) => !u.schoolId || u.schoolId !== card.schoolId);
+    if (invalidUsers.length > 0) {
+      throw new BadRequestException(
+        `Cannot assign card. ${invalidUsers.length} user(s) do not belong to the card's school.`,
+      );
+    }
+
     const codesToCreate = userIds.map((userId) => ({
       cardId,
       userId,
