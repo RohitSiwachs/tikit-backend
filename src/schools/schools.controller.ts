@@ -38,8 +38,24 @@ export class SchoolsController {
     return this.schoolsService.create(createSchoolDto);
   }
 
-  @Get()
+  @Get('public')
   @Public()
+  @ApiOperation({ summary: 'List all schools publicly with pagination and search' })
+  findAllPublic(
+    @Query('search') search?: string,
+    @Query('city') city?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.schoolsService.findAll({
+      search,
+      city,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+    });
+  }
+
+  @Get()
   @ApiOperation({ summary: 'List all schools with pagination and search' })
   findAll(
     @Query('search') search?: string,
