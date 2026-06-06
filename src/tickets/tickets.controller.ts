@@ -12,6 +12,7 @@ import { TicketsService } from './tickets.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
+import { ClaimTicketDto } from './dto/claim-ticket.dto';
 
 @ApiTags('tickets')
 @ApiBearerAuth()
@@ -22,16 +23,11 @@ export class TicketsController {
   @Post('claim')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Claim a free ticket for an event' })
-  claimFreeTicket(
-    @Request() req: any,
-    @Body('eventId') eventId: string,
-    @Body('ticketTypeId') ticketTypeId: string,
-  ) {
-    // Fixed: was req.user.sub (undefined) — JWT strategy maps sub → id
+  claimFreeTicket(@Request() req: any, @Body() dto: ClaimTicketDto) {
     return this.ticketsService.claimFreeTicket(
       req.user.id,
-      eventId,
-      ticketTypeId,
+      dto.eventId,
+      dto.ticketTypeId,
       req.user.schoolId,
     );
   }
