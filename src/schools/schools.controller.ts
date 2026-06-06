@@ -16,6 +16,7 @@ import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { Role } from '../prisma-enums';
 import {
   UploadStudentsDto,
@@ -38,6 +39,7 @@ export class SchoolsController {
   }
 
   @Get()
+  @Public()
   @ApiOperation({ summary: 'List all schools with pagination and search' })
   findAll(
     @Query('search') search?: string,
