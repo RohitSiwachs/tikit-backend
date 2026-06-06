@@ -46,25 +46,6 @@ export class RegisterDto {
   @IsString()
   phone?: string;
 
-  @ApiPropertyOptional({ default: false, description: 'Consent to receive push notifications' })
-  @IsOptional()
-  @IsBoolean()
-  notifPush?: boolean;
-
-  @ApiPropertyOptional({ default: false, description: 'Consent to receive email notifications' })
-  @IsOptional()
-  @IsBoolean()
-  notifEmail?: boolean;
-
-  @ApiPropertyOptional({ default: false, description: 'Consent to receive SMS notifications' })
-  @IsOptional()
-  @IsBoolean()
-  notifSms?: boolean;
-
-  @ApiPropertyOptional({ default: false, description: 'Consent to receive marketing communications' })
-  @IsOptional()
-  @IsBoolean()
-  marketingConsent?: boolean;
 }
 
 export class SendOtpDto {

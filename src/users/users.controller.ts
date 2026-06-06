@@ -16,7 +16,7 @@ import {
   UpdateUserApprovalDto,
 } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
+
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
@@ -148,17 +148,7 @@ export class UsersController {
     );
   }
 
-  @Patch('notification-settings')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({
-    summary: 'Update notification preferences for the logged-in user',
-  })
-  updateNotificationSettings(
-    @Request() req: any,
-    @Body() dto: UpdateNotificationSettingsDto,
-  ) {
-    return this.usersService.updateNotificationSettings(req.user.id, dto);
-  }
+
 
   @Patch('profile')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)

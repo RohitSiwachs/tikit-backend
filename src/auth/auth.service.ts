@@ -188,10 +188,6 @@ export class AuthService {
     const {
       schoolCode,
       password,
-      notifPush = false,
-      notifEmail = false,
-      notifSms = false,
-      marketingConsent = false,
       ...userData
     } = dto;
 
@@ -216,10 +212,6 @@ export class AuthService {
         role: 'STUDENT',
         accountStatus: 'ACTIVE',
         approvalStatus: 'pending',
-        notifPush,
-        notifEmail,
-        notifSms,
-        marketingConsent,
       },
       select: SAFE_USER_SELECT,
     });

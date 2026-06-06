@@ -24,7 +24,7 @@ const SAFE_USER_SELECT = {
   createdAt: true,
 } as const;
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
+
 
 @Injectable()
 export class UsersService {
@@ -479,25 +479,7 @@ export class UsersService {
     };
   }
 
-  async updateNotificationSettings(
-    userId: string,
-    dto: UpdateNotificationSettingsDto,
-  ) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: dto,
-      select: {
-        id: true,
-        notifPush: true,
-        notifEmail: true,
-        notifSms: true,
-        notifFriendRequests: true,
-        notifNewPosts: true,
-        notifEventInvites: true,
-        notifTicketReceipts: true,
-      },
-    });
-  }
+
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
