@@ -110,6 +110,11 @@ export class CampaignsService {
     if (filters.className) baseWhere.className = filters.className;
     if (filters.role) baseWhere.role = filters.role;
 
+    // Respect per-channel notification preferences — never contact opted-out users
+    if (campaign.channel === 'push') baseWhere.notifPush = true;
+    if (campaign.channel === 'sms') baseWhere.notifSms = true;
+    if (campaign.channel === 'email') baseWhere.notifEmail = true;
+
     let cursor: string | undefined;
     let totalSent = 0;
 

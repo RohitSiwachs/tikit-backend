@@ -185,7 +185,15 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const { schoolCode, password, ...userData } = dto;
+    const {
+      schoolCode,
+      password,
+      notifPush = false,
+      notifEmail = false,
+      notifSms = false,
+      marketingConsent = false,
+      ...userData
+    } = dto;
 
     const school = await this.prisma.school.findUnique({
       where: { schoolCode },
@@ -208,6 +216,10 @@ export class AuthService {
         role: 'STUDENT',
         accountStatus: 'ACTIVE',
         approvalStatus: 'pending',
+        notifPush,
+        notifEmail,
+        notifSms,
+        marketingConsent,
       },
       select: SAFE_USER_SELECT,
     });

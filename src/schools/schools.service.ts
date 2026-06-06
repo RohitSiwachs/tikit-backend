@@ -233,7 +233,6 @@ export class SchoolsService {
         return Promise.resolve();
       })
     ).catch((err) => {
-      // Catch all just in case, though allSettled handles individual rejections
       console.error('Error sending card assignment emails:', err);
     });
 

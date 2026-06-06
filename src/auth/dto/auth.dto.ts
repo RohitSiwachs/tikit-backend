@@ -2,10 +2,11 @@ import {
   IsString,
   IsEmail,
   IsOptional,
+  IsBoolean,
   MinLength,
   MaxLength,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
   @ApiProperty()
@@ -40,10 +41,30 @@ export class RegisterDto {
   @IsString()
   schoolCode: string;
 
-  @ApiProperty({ required: false })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ default: false, description: 'Consent to receive push notifications' })
+  @IsOptional()
+  @IsBoolean()
+  notifPush?: boolean;
+
+  @ApiPropertyOptional({ default: false, description: 'Consent to receive email notifications' })
+  @IsOptional()
+  @IsBoolean()
+  notifEmail?: boolean;
+
+  @ApiPropertyOptional({ default: false, description: 'Consent to receive SMS notifications' })
+  @IsOptional()
+  @IsBoolean()
+  notifSms?: boolean;
+
+  @ApiPropertyOptional({ default: false, description: 'Consent to receive marketing communications' })
+  @IsOptional()
+  @IsBoolean()
+  marketingConsent?: boolean;
 }
 
 export class SendOtpDto {
