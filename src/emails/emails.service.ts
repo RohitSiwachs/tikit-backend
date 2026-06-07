@@ -26,8 +26,11 @@ export class EmailsService {
   async sendEmail(to: string, subject: string, html: string) {
     if (this.resend) {
       try {
+        // Fallback to Resend's testing domain while tikit.se is pending verification
+        const fromEmail = 'onboarding@resend.dev';
+
         const result = await this.resend.emails.send({
-          from: 'TiKit <noreply@tikit.se>',
+          from: fromEmail,
           to,
           subject,
           html,
