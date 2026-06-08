@@ -10,12 +10,12 @@ async function bootstrap() {
   const prisma = app.get(PrismaService);
   const notificationsService = app.get(NotificationsService);
 
-  console.log('\n👤 1. Seeding a fake Expo Push Token for demostudent@gmail.com...');
+  console.log('\n👤 1. Seeding a fake Expo Push Token for rohitsiwachs1999@gmail.com...');
   // Expo requires tokens to match a specific format to be valid
   const fakeToken = 'ExponentPushToken[1234567890123456789012]';
   
   const user = await prisma.user.update({
-    where: { email: 'demostudent@gmail.com' },
+    where: { email: 'rohitsiwachs1999@gmail.com' },
     data: { expoPushToken: fakeToken, notifPush: true },
   });
   console.log(`✅ User ${user.email} updated with token: ${user.expoPushToken}`);

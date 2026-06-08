@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   Logger,
+  Inject,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -19,6 +20,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { EmailsService } from '../emails/emails.service';
+import { SMS_SERVICE, ISmsService } from '../sms/sms.interface';
 
 // Fields safe to return in API responses — expoPushToken is intentionally excluded
 // (device identifiers should never be echoed back to clients)
@@ -67,6 +69,7 @@ export class AuthService {
     private jwtService: JwtService,
     private config: ConfigService,
     private emailsService: EmailsService,
+    @Inject(SMS_SERVICE) private readonly smsService: ISmsService,
   ) {}
 
   private buildTokenPayload(user: {
@@ -185,11 +188,7 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const {
-      schoolCode,
-      password,
-      ...userData
-    } = dto;
+    const { schoolCode, password, ...userData } = dto;
 
     const school = await this.prisma.school.findUnique({
       where: { schoolCode },
@@ -324,14 +323,15 @@ export class AuthService {
       });
     }
 
+    if (!user.phone) {
+      throw new BadRequestException(
+        'A phone number is required to send an OTP',
+      );
+    }
+
     const otpPlain = crypto.randomInt(10000, 99999).toString();
     const otpHash = await bcrypt.hash(otpPlain, 10);
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-    
-    // forcefully print OTP to console
-    console.log(`\n========================================`);
-    console.log(`[Dev OTP] userId=${user.id} | code=${otpPlain}`);
-    console.log(`========================================\n`);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -339,43 +339,16 @@ export class AuthService {
         otpCode: otpHash,
         otpExpiresAt,
         otpSentAt: new Date(),
-        otpAttempts: 0, // Reset attempts when a new OTP is issued
+        otpAttempts: 0,
       },
     });
 
-    const elksUsername = process.env.ELKS_USERNAME;
-    const elksPassword = process.env.ELKS_PASSWORD;
+    await this.smsService.sendOtp(user.phone, otpPlain);
 
-    if (elksUsername && elksPassword && user.phone) {
-      try {
-        const auth = Buffer.from(`${elksUsername}:${elksPassword}`).toString(
-          'base64',
-        );
-        const body = new URLSearchParams({
-          from: 'TiKit',
-          to: user.phone,
-          message: `Your TiKit verification code is: ${otpPlain}`,
-        });
-        const response = await fetch('https://api.46elks.com/a1/SMS', {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body,
-        });
-        if (!response.ok) {
-          this.logger.error(`46elks SMS failed: ${await response.text()}`);
-        }
-      } catch (err) {
-        this.logger.error('46elks error', err.stack);
-      }
-    } else if (process.env.NODE_ENV !== 'production') {
-      // Development only — log OTP to console for testing
-      this.logger.log(`[Dev OTP] userId=${user.id} code=${otpPlain}`);
+    if (process.env.NODE_ENV === 'development') {
+      return { success: true, message: 'OTP generated', otp: otpPlain };
     }
-
-    return { message: 'OTP sent successfully' };
+    return { success: true, message: 'OTP generated' };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {

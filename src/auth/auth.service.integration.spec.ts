@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { EmailsService } from '../emails/emails.service';
+import { SMS_SERVICE } from '../sms/sms.interface';
 import * as crypto from 'crypto';
 import {
   testPrisma,
@@ -58,6 +59,10 @@ describe('AuthService (integration)', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: EmailsService, useValue: mockEmailsService },
+        {
+          provide: SMS_SERVICE,
+          useValue: { sendOtp: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -176,8 +181,68 @@ describe('AuthService (integration)', () => {
     });
 
     await expect(service.sendOtp({ userId: user.id })).resolves.toMatchObject({
-      message: 'OTP sent successfully',
+      success: true,
+      message: 'OTP generated',
     });
+  });
+
+  // ─── OTP — no phone number ────────────────────────────────────────────────────
+
+  it('throws when user has no phone and dto.phone is not provided', async () => {
+    const user = await createTestUser(school); // phone is null by default
+
+    await expect(service.sendOtp({ userId: user.id })).rejects.toThrow(
+      /phone number is required/i,
+    );
+  });
+
+  it('does not store an OTP when no phone number exists', async () => {
+    const user = await createTestUser(school);
+
+    await expect(service.sendOtp({ userId: user.id })).rejects.toThrow();
+
+    const dbUser = await testPrisma.user.findUnique({ where: { id: user.id } });
+    expect(dbUser?.otpCode).toBeNull();
+    expect(dbUser?.otpExpiresAt).toBeNull();
+    expect(dbUser?.otpSentAt).toBeNull();
+  });
+
+  it('does not call smsService when no phone number exists', async () => {
+    const user = await createTestUser(school);
+    const module = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: testPrisma },
+        { provide: JwtService, useValue: mockJwtService },
+        { provide: ConfigService, useValue: mockConfigService },
+        { provide: EmailsService, useValue: mockEmailsService },
+        {
+          provide: SMS_SERVICE,
+          useValue: { sendOtp: jest.fn().mockResolvedValue(undefined) },
+        },
+      ],
+    }).compile();
+
+    const svc = module.get<AuthService>(AuthService);
+    const smsMock = module.get<{ sendOtp: jest.Mock }>(SMS_SERVICE);
+
+    await expect(svc.sendOtp({ userId: user.id })).rejects.toThrow();
+    expect(smsMock.sendOtp).not.toHaveBeenCalled();
+  });
+
+  it('succeeds when dto.phone is provided for a user with no stored phone', async () => {
+    const user = await createTestUser(school); // no phone
+
+    const result = await service.sendOtp({
+      userId: user.id,
+      phone: '+447700900001',
+    });
+
+    expect(result).toMatchObject({ success: true, message: 'OTP generated' });
+
+    const dbUser = await testPrisma.user.findUnique({ where: { id: user.id } });
+    expect(dbUser?.phone).toBe('+447700900001');
+    expect(dbUser?.otpCode).not.toBeNull();
   });
 
   // ─── OTP brute-force protection ───────────────────────────────────────────────

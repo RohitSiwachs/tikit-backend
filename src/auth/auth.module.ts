@@ -8,12 +8,14 @@ import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './jwt.strategy';
 import { EmailsModule } from '../emails/emails.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
     PassportModule,
     EmailsModule,
     PrismaModule,
+    SmsModule,
 
     JwtModule.registerAsync({
       inject: [ConfigService],

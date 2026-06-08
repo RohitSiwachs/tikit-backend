@@ -36,9 +36,8 @@ export const envValidationSchema = Joi.object({
   R2_BUCKET_NAME: Joi.string().optional().default('tikit-media'),
   R2_PUBLIC_URL: Joi.string().optional().allow(''),
 
-  // 46elks SMS (optional — falls back to mock in dev)
-  ELKS_USERNAME: Joi.string().optional(),
-  ELKS_PASSWORD: Joi.string().optional(),
+  // SMS provider selection (mock | hellosms) — defaults to mock
+  SMS_PROVIDER: Joi.string().valid('mock', 'hellosms').default('mock'),
 
   // Resend Email (optional — falls back to console logger in dev)
   RESEND_API_KEY: Joi.string().optional().allow(''),

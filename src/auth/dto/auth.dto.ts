@@ -45,7 +45,6 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
 }
 
 export class SendOtpDto {
