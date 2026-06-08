@@ -24,7 +24,7 @@ import { SmsModule } from '../sms/sms.module';
         privateKey: config.get<string>('jwt.privateKey'),
         publicKey: config.get<string>('jwt.publicKey'),
         signOptions: {
-          expiresIn: config.get<string>('jwt.accessExpiration') || '15m',
+          expiresIn: '15m',
           algorithm: 'RS256',
         } as any,
       }),
