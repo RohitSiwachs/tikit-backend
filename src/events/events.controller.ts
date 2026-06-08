@@ -43,6 +43,7 @@ export class EventsController {
     @Query('isPublished') isPublished?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Request() req?: any,
   ) {
     return this.eventsService.findAll({
       schoolId,
@@ -54,6 +55,9 @@ export class EventsController {
             : undefined,
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
+      requestingUser: req?.user
+        ? { schoolId: req.user.schoolId, role: req.user.role }
+        : undefined,
     });
   }
 
@@ -265,7 +269,7 @@ export class EventsController {
     summary: "I'm Going — RSVP & fetch free ticket (internal events)",
   })
   rsvp(@Param('id') id: string, @Request() req: any) {
-    return this.eventsService.rsvp(id, req.user.id, req.user.schoolId);
+    return this.eventsService.rsvp(id, req.user.id);
   }
 
   @Delete(':id/rsvp')

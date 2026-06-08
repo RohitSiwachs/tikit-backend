@@ -32,7 +32,7 @@ export class TicketsService {
     userId: string,
     eventId: string,
     ticketTypeId: string,
-    userSchoolId: string,
+    userSchoolId?: string,
   ) {
     if (!userId) throw new BadRequestException('User not authenticated');
 

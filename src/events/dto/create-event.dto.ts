@@ -22,9 +22,15 @@ export class CreateTicketTypeDto {
   @IsString()
   description?: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    required: false,
+    default: 0,
+    description:
+      'Ignored for INTERNAL events — always forced to 0. Reserved for future external use.',
+  })
+  @IsOptional()
   @IsNumber()
-  price: number;
+  price?: number;
 
   @ApiProperty()
   @IsNumber()

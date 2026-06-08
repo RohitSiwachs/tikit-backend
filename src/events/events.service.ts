@@ -34,6 +34,14 @@ export class EventsService {
       );
     }
     const { ticketTypes, connectedSchools, ...eventData } = dto;
+
+    // Internal events: all ticket types are always free
+    const normalizedTicketTypes = ticketTypes.map((tt) =>
+      dto.eventType === 'INTERNAL'
+        ? { ...tt, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        : { ...tt, price: tt.price ?? 0 },
+    );
+
     return this.prisma.event.create({
       data: {
         ...eventData,
@@ -43,7 +51,7 @@ export class EventsService {
           ? { connect: connectedSchools.map((id) => ({ id })) }
           : undefined,
         ticketTypes: {
-          create: ticketTypes.map((tt) => ({
+          create: normalizedTicketTypes.map((tt) => ({
             ...tt,
             quantityRemaining: tt.quantityTotal,
           })),
@@ -61,13 +69,29 @@ export class EventsService {
     isPublished?: boolean;
     page?: number;
     limit?: number;
+    requestingUser?: { schoolId?: string; role?: string };
   }) {
-    const { schoolId, isPublished, page = 1, limit = 10 } = query;
+    const {
+      schoolId,
+      isPublished,
+      page = 1,
+      limit = 10,
+      requestingUser,
+    } = query;
     const skip = (page - 1) * limit;
 
     const where: any = {};
     if (schoolId) where.schoolId = schoolId;
     if (isPublished !== undefined) where.isPublished = isPublished;
+
+    // Visibility rule: INTERNAL events are only visible to students of the hosting school.
+    // EXTERNAL events are visible to everyone. Admins see everything.
+    if (requestingUser?.role === 'STUDENT' && requestingUser?.schoolId) {
+      where.OR = [
+        { eventType: 'EXTERNAL' },
+        { eventType: 'INTERNAL', schoolId: requestingUser.schoolId },
+      ];
+    }
 
     const [total, data] = await Promise.all([
       this.prisma.event.count({ where }),
@@ -131,8 +155,24 @@ export class EventsService {
     if (requestingUserId) {
       const user = await this.prisma.user.findUnique({
         where: { id: requestingUserId },
-        select: { following: { select: { id: true } } },
+        select: {
+          schoolId: true,
+          role: true,
+          following: { select: { id: true } },
+        },
       });
+
+      // Access control: INTERNAL events are only visible to same-school students
+      if (
+        event.eventType === 'INTERNAL' &&
+        user?.role === 'STUDENT' &&
+        user.schoolId !== event.schoolId
+      ) {
+        throw new ForbiddenException(
+          'This event is not available for your school',
+        );
+      }
+
       if (user) {
         const followingIds = user.following.map((f) => f.id);
         const friendTickets = await this.prisma.ticket.findMany({
@@ -313,8 +353,18 @@ export class EventsService {
         ticketTypes: {
           create: ticketTypes.map((tt) => {
             const { id: oldTtId, eventId, isSoldOut, ...ttData } = tt;
+            // Internal events: enforce free pricing on the duplicate too
+            const normalized =
+              eventData.eventType === 'INTERNAL'
+                ? {
+                    ...ttData,
+                    price: 0,
+                    priceDisplay: 'Free',
+                    freeForHostSchool: true,
+                  }
+                : ttData;
             return {
-              ...ttData,
+              ...normalized,
               quantityRemaining: tt.quantityTotal,
             };
           }),
@@ -385,9 +435,22 @@ export class EventsService {
     requestingSchoolId?: string | null,
   ) {
     await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
+
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { eventType: true },
+    });
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+
+    // Internal events: price is always 0 regardless of what the caller sends
+    const data =
+      event.eventType === 'INTERNAL'
+        ? { ...dto, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        : { ...dto, price: dto.price ?? 0 };
+
     return this.prisma.ticketType.create({
       data: {
-        ...dto,
+        ...data,
         eventId,
         quantityRemaining: dto.quantityTotal,
       },
@@ -401,13 +464,20 @@ export class EventsService {
   ) {
     const tt = await this.prisma.ticketType.findUnique({
       where: { id: ticketTypeId },
-      select: { eventId: true },
+      select: { eventId: true, event: { select: { eventType: true } } },
     });
     if (tt)
       await this.assertSchoolOwnership(tt.eventId, requestingSchoolId ?? null);
+
+    // Internal events: freeForHostSchool must always remain true
+    const data =
+      tt?.event.eventType === 'INTERNAL'
+        ? { ...dto, freeForHostSchool: true }
+        : dto;
+
     return this.prisma.ticketType.update({
       where: { id: ticketTypeId },
-      data: dto,
+      data,
     });
   }
 
@@ -490,8 +560,8 @@ export class EventsService {
     });
   }
 
-  async rsvp(eventId: string, userId: string, userSchoolId: string) {
-    return this.fetchFreeTicket(eventId, userId, userSchoolId);
+  async rsvp(eventId: string, userId: string) {
+    return this.fetchFreeTicket(eventId, userId);
   }
 
   async cancelRsvp(eventId: string, userId: string) {
@@ -519,7 +589,7 @@ export class EventsService {
     return { message: 'RSVP cancelled and capacity restored' };
   }
 
-  async fetchFreeTicket(eventId: string, userId: string, userSchoolId: string) {
+  async fetchFreeTicket(eventId: string, userId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: { ticketTypes: true },
@@ -534,28 +604,28 @@ export class EventsService {
       );
     }
 
-    // Host-school check: user.schoolId must match event.schoolId
-    const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
-
-    if (!isHostSchoolStudent) {
+    // School restriction: only students of the hosting school may RSVP internal events
+    const student = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { schoolId: true, role: true },
+    });
+    if (student?.role === 'STUDENT' && student.schoolId !== event.schoolId) {
       throw new ForbiddenException(
-        'Only host-school students can claim free tickets for internal events',
+        'This event is only available for students of the organizing school',
       );
     }
 
-    // Find the first available ticket type marked free for host-school students
-    const freeTicketType = event.ticketTypes.find(
-      (tt) => tt.freeForHostSchool && tt.quantityRemaining > 0 && !tt.isSoldOut,
+    // All internal event tickets are free — find the first available type
+    const availableTicketType = event.ticketTypes.find(
+      (tt) => tt.quantityRemaining > 0 && !tt.isSoldOut,
     );
-    if (!freeTicketType)
-      throw new BadRequestException(
-        'No ticket types are available for free host-school claim',
-      );
+    if (!availableTicketType)
+      throw new BadRequestException('No tickets are available for this event');
 
     const ticket = await this.prisma.$transaction(async (tx) => {
-      // Re-read inside transaction for consistent state
+      // Re-read inside transaction for consistent inventory state
       const freshType = await tx.ticketType.findUnique({
-        where: { id: freeTicketType.id },
+        where: { id: availableTicketType.id },
       });
       if (
         !freshType ||
@@ -565,7 +635,7 @@ export class EventsService {
         throw new BadRequestException('Tickets are sold out');
       }
 
-      // Duplicate check inside transaction — DB @@unique([userId, eventId]) is the final guard
+      // Duplicate check — DB @@unique([userId, eventId]) is the final guard
       const existing = await tx.ticket.findFirst({
         where: { userId, eventId },
       });
@@ -573,13 +643,13 @@ export class EventsService {
         throw new ConflictException('You already have a ticket for this event');
 
       const updated = await tx.ticketType.update({
-        where: { id: freeTicketType.id },
+        where: { id: availableTicketType.id },
         data: { quantityRemaining: { decrement: 1 } },
       });
 
       if (updated.quantityRemaining === 0) {
         await tx.ticketType.update({
-          where: { id: freeTicketType.id },
+          where: { id: availableTicketType.id },
           data: { isSoldOut: true },
         });
       }
@@ -588,7 +658,7 @@ export class EventsService {
         data: {
           userId,
           eventId,
-          ticketTypeId: freeTicketType.id,
+          ticketTypeId: availableTicketType.id,
           code: generateTicketCode(),
           qrToken: generateQrToken(),
           status: 'ISSUED',
