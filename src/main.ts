@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
+import { ValidationPipe, ClassSerializerInterceptor, RequestMethod } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
@@ -21,7 +21,9 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: '1mb' }));
 
   // ─── Global Prefix ────────────────────────────────────
-  app.setGlobalPrefix('v1');
+  app.setGlobalPrefix('v1', {
+    exclude: [{ path: '/', method: RequestMethod.GET }],
+  });
 
   // ─── Global Pipes ─────────────────────────────────────
   app.useGlobalPipes(
