@@ -38,6 +38,16 @@ export const envValidationSchema = Joi.object({
 
   // SMS provider selection (mock | hellosms) — defaults to mock
   SMS_PROVIDER: Joi.string().valid('mock', 'hellosms').default('mock'),
+  HELLOSMS_USERNAME: Joi.string().when('SMS_PROVIDER', {
+    is: 'hellosms',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
+  HELLOSMS_PASSWORD: Joi.string().when('SMS_PROVIDER', {
+    is: 'hellosms',
+    then: Joi.required(),
+    otherwise: Joi.optional().allow(''),
+  }),
 
   // Resend Email (optional — falls back to console logger in dev)
   RESEND_API_KEY: Joi.string().optional().allow(''),

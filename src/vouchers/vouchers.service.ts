@@ -24,6 +24,11 @@ export class VouchersService {
 
     if (!event) throw new NotFoundException('Event not found');
     if (!ticketType) throw new NotFoundException('Ticket type not found');
+    if (event.eventType === 'EXTERNAL') {
+      throw new BadRequestException(
+        'Vouchers cannot be created for external events.',
+      );
+    }
     if (ticketType.eventId !== dto.eventId) {
       throw new BadRequestException(
         'Ticket type does not belong to this event',
@@ -55,6 +60,16 @@ export class VouchersService {
     if (voucher.assignedToId && voucher.assignedToId !== userId) {
       throw new BadRequestException(
         'This voucher is assigned to a different user',
+      );
+    }
+
+    const voucherEvent = await this.prisma.event.findUnique({
+      where: { id: voucher.eventId },
+      select: { eventType: true },
+    });
+    if (voucherEvent?.eventType === 'EXTERNAL') {
+      throw new BadRequestException(
+        'This voucher is for an external event and cannot be redeemed through TiKit.',
       );
     }
 

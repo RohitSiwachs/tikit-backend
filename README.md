@@ -76,7 +76,6 @@ See [.env.example](.env.example) for all variables with descriptions. Key ones:
 | `FRONTEND_URL` | Prod only | Used in password reset email links |
 | `LOG_LEVEL` | No | `debug` (dev default) / `warn` (prod default) |
 | `RESEND_API_KEY` | No | Email sending — falls back to console log in dev |
-| `ELKS_USERNAME` | No | SMS via 46elks — falls back to mock in dev |
 | `AWS_ACCESS_KEY_ID` | No | S3 file uploads |
 
 ---

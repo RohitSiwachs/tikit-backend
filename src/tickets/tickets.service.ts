@@ -45,12 +45,20 @@ export class TicketsService {
         'Ticket type does not belong to this event',
       );
 
-    // Look up event to compare school IDs
+    // Look up event to compare school IDs and enforce eventType boundary
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      select: { schoolId: true },
+      select: { schoolId: true, eventType: true },
     });
     if (!event) throw new NotFoundException('Event not found');
+
+    // External events are always handled by the external ticket provider.
+    // TiKit never issues tickets for external events regardless of user role or ticket price.
+    if (event.eventType === 'EXTERNAL') {
+      throw new BadRequestException(
+        'Tickets for this event must be purchased through the external ticket provider.',
+      );
+    }
 
     const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
 

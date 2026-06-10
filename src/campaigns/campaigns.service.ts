@@ -184,23 +184,9 @@ export class CampaignsService {
         }
       }
     } else if (campaign.channel === 'sms') {
-      const username = process.env.ELKS_USERNAME;
-      const password = process.env.ELKS_PASSWORD;
-
-      for (const user of batch) {
-        if (!user.phone) continue;
-        try {
-          const success = await this.sendSms(
-            username,
-            password,
-            user.phone,
-            campaign.body,
-          );
-          if (success) sent++;
-        } catch (err) {
-          this.logger.warn(`SMS to user ${user.id} failed: ${err.message}`);
-        }
-      }
+      this.logger.warn(
+        `Campaign ${campaign.id}: SMS channel is not supported — skipping batch`,
+      );
     } else if (campaign.channel === 'email') {
       for (const user of batch) {
         if (!user.email) continue;
@@ -220,29 +206,6 @@ export class CampaignsService {
     return sent;
   }
 
-  private async sendSms(
-    username: string | undefined,
-    password: string | undefined,
-    phone: string,
-    message: string,
-  ): Promise<boolean> {
-    if (!username || !password) {
-      this.logger.debug(
-        '[dev] SMS mock — set ELKS_USERNAME/PASSWORD for real delivery',
-      );
-      return true;
-    }
-    const res = await fetch('https://api.46elks.com/a1/sms', {
-      method: 'POST',
-      headers: {
-        Authorization:
-          'Basic ' + Buffer.from(`${username}:${password}`).toString('base64'),
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ from: 'TiKit', to: phone, message }),
-    });
-    return res.ok;
-  }
 
   async getReport(id: string) {
     const campaign = await this.findOne(id);
