@@ -30,8 +30,9 @@ model School {
   cards              Card[]
   posts              Post[]
   classes            Class[]
-  connectionRequests EventConnectionRequest[]
-  createdAt          DateTime                 @default(now())
+  connectionRequests      EventConnectionRequest[]
+  communicationAllocation CommunicationAllocation?
+  createdAt               DateTime                 @default(now())
 
   @@index([isActive])
   @@index([city])
@@ -57,6 +58,7 @@ model User {
   approvalStatus   String    @default("pending")
   cardStatus       String    @default("inactive")
   marketingConsent Boolean   @default(false)
+  joinedViaCode    Boolean   @default(false)
 
   firstName          String?
   lastName           String?
@@ -440,5 +442,37 @@ model PollVote {
   @@unique([postId, userId])
   @@index([optionId])
   @@index([userId])
+}
+
+model CommunicationAllocation {
+  id             String   @id @default(uuid())
+  schoolId       String   @unique
+  school         School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  // ── Campaign / broadcast totals (implemented) ──────────────────────────
+  pushAllocated  Int      @default(0)
+  pushUsed       Int      @default(0)
+  emailAllocated Int      @default(0)
+  emailUsed      Int      @default(0)
+  smsAllocated   Int      @default(0)
+  smsUsed        Int      @default(0)
+
+  // ── Pricing per message (for billing dashboards) ───────────────────────
+  pushPrice      Decimal? @db.Decimal(10, 4)
+  emailPrice     Decimal? @db.Decimal(10, 4)
+  smsPrice       Decimal? @db.Decimal(10, 4)
+
+  // TODO(future): transactional tracking — add these columns when OTP / ticket
+  // receipt / password-reset volumes need to be metered separately from campaigns.
+  // Increment from AuthService (OTP), TicketsService (receipts), etc.
+  //
+  //   pushTransactionalUsed  Int @default(0)
+  //   emailTransactionalUsed Int @default(0)
+  //   smsTransactionalUsed   Int @default(0)
+  //
+  // No schema redesign needed — these sit alongside *Used fields above.
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 

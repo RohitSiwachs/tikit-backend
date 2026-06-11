@@ -58,6 +58,16 @@ export class SchoolsService {
         },
       });
 
+      // Default communication quota — 500 per channel for every new school
+      await tx.communicationAllocation.create({
+        data: {
+          schoolId: school.id,
+          pushAllocated: 500,
+          emailAllocated: 500,
+          smsAllocated: 500,
+        },
+      });
+
       return school;
     });
   }
@@ -124,12 +134,39 @@ export class SchoolsService {
     return school;
   }
 
-  async update(id: string, updateSchoolDto: UpdateSchoolDto) {
-    const { schoolCode, ...updateData } = updateSchoolDto as any;
-    return this.prisma.school.update({
+  async update(id: string, updateSchoolDto: UpdateSchoolDto, callerRole?: string) {
+    const {
+      schoolCode,
+      pushAllocated, emailAllocated, smsAllocated,
+      pushPrice, emailPrice, smsPrice,
+      ...schoolData
+    } = updateSchoolDto as any;
+
+    const school = await this.prisma.school.update({
       where: { id },
-      data: updateData,
+      data: schoolData,
     });
+
+    // Communication limits are TIKIT_ADMIN-only — silently ignored for other roles
+    if (callerRole === 'TIKIT_ADMIN') {
+      const alloc: Record<string, number> = {};
+      if (pushAllocated  !== undefined) alloc.pushAllocated  = pushAllocated;
+      if (emailAllocated !== undefined) alloc.emailAllocated = emailAllocated;
+      if (smsAllocated   !== undefined) alloc.smsAllocated   = smsAllocated;
+      if (pushPrice      !== undefined) alloc.pushPrice      = pushPrice;
+      if (emailPrice     !== undefined) alloc.emailPrice     = emailPrice;
+      if (smsPrice       !== undefined) alloc.smsPrice       = smsPrice;
+
+      if (Object.keys(alloc).length > 0) {
+        await this.prisma.communicationAllocation.upsert({
+          where:  { schoolId: id },
+          create: { schoolId: id, ...alloc },
+          update: alloc,
+        });
+      }
+    }
+
+    return school;
   }
 
   async remove(id: string) {

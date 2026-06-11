@@ -8,6 +8,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
+import { CommunicationUsageService } from '../communication/communication-usage.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
 import Expo from 'expo-server-sdk';
 import { CAMPAIGNS_QUEUE, SEND_CAMPAIGN_JOB } from './campaigns.constants';
@@ -17,6 +18,7 @@ import { CAMPAIGNS_QUEUE, SEND_CAMPAIGN_JOB } from './campaigns.constants';
 // draft → scheduled → processing → sent
 // processing → failed (on unhandled error)
 type CampaignStatus = 'draft' | 'scheduled' | 'processing' | 'sent' | 'failed';
+type Channel = 'push' | 'email' | 'sms';
 
 const BATCH_SIZE = 100;
 
@@ -30,6 +32,7 @@ export class CampaignsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailsService: EmailsService,
+    private readonly communicationUsageService: CommunicationUsageService,
     @InjectQueue(CAMPAIGNS_QUEUE) private readonly campaignsQueue: Queue,
   ) {}
 
@@ -69,6 +72,15 @@ export class CampaignsService {
     }
     if (campaign.status === 'processing') {
       throw new BadRequestException('Campaign send is already in progress');
+    }
+
+    // Quota check — throws 409 if school has no remaining quota for this channel
+    const schoolId = (campaign.segmentFilters as any)?.schoolId as string | undefined;
+    if (schoolId && ['push', 'email', 'sms'].includes(campaign.channel)) {
+      await this.communicationUsageService.checkQuota(
+        schoolId,
+        campaign.channel as Channel,
+      );
     }
 
     // Atomic lock: only transitions from draft or scheduled → processing.
@@ -142,6 +154,15 @@ export class CampaignsService {
         data: { status: 'sent' as CampaignStatus, sentCount: totalSent },
       });
 
+      // Increment usage only on full success — do NOT track if campaign failed
+      const schoolId = filters.schoolId as string | undefined;
+      if (schoolId && totalSent > 0 && ['push', 'email', 'sms'].includes(campaign.channel)) {
+        const channel = campaign.channel as Channel;
+        if (channel === 'push') await this.communicationUsageService.incrementPushUsage(schoolId, totalSent);
+        else if (channel === 'email') await this.communicationUsageService.incrementEmailUsage(schoolId, totalSent);
+        else if (channel === 'sms') await this.communicationUsageService.incrementSmsUsage(schoolId, totalSent);
+      }
+
       this.logger.log(`Campaign ${id} sent to ${totalSent} recipients`);
     } catch (err) {
       this.logger.error(
@@ -205,7 +226,6 @@ export class CampaignsService {
 
     return sent;
   }
-
 
   async getReport(id: string) {
     const campaign = await this.findOne(id);

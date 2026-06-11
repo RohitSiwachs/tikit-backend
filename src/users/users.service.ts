@@ -19,6 +19,7 @@ const SAFE_USER_SELECT = {
   role: true,
   accountStatus: true,
   approvalStatus: true,
+  joinedViaCode: true,
   className: true,
   schoolId: true,
   createdAt: true,
@@ -112,6 +113,22 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: { approvalStatus: status },
+    });
+  }
+
+  async getPendingApprovals(schoolId: string) {
+    return this.prisma.user.findMany({
+      where: { schoolId, approvalStatus: 'pending', role: 'STUDENT' },
+      select: SAFE_USER_SELECT,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getManualApprovals(schoolId: string) {
+    return this.prisma.user.findMany({
+      where: { schoolId, approvalStatus: 'approved', joinedViaCode: false, role: 'STUDENT' },
+      select: SAFE_USER_SELECT,
+      orderBy: { createdAt: 'desc' },
     });
   }
 

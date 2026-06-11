@@ -88,7 +88,7 @@ export class SchoolsController {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
       throw new ForbiddenException('You can only manage your own school');
     }
-    return this.schoolsService.update(id, updateSchoolDto);
+    return this.schoolsService.update(id, updateSchoolDto, req.user.role);
   }
 
   // ─── School Verification ─────────────────────────────────────────────────

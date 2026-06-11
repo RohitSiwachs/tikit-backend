@@ -9,11 +9,13 @@ import { CampaignsProcessor } from './campaigns.processor';
 import { CAMPAIGNS_QUEUE } from './campaigns.constants';
 import { PrismaModule } from '../prisma/prisma.module';
 import { EmailsModule } from '../emails/emails.module';
+import { CommunicationModule } from '../communication/communication.module';
 
 @Module({
   imports: [
     PrismaModule,
     EmailsModule,
+    CommunicationModule,
     BullModule.registerQueue({ name: CAMPAIGNS_QUEUE }),
     BullBoardModule.forFeature({
       name: CAMPAIGNS_QUEUE,

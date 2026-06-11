@@ -188,12 +188,29 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const { schoolCode, password, ...userData } = dto;
+    const { schoolCode, schoolId, password, ...userData } = dto;
 
-    const school = await this.prisma.school.findUnique({
-      where: { schoolCode },
-    });
-    if (!school) throw new BadRequestException('Invalid school code');
+    if (!schoolCode && !schoolId) {
+      throw new BadRequestException('Either schoolCode or schoolId must be provided');
+    }
+
+    let finalSchoolId: string;
+    let finalApprovalStatus = 'pending';
+    let joinedViaCode = false;
+
+    if (schoolCode) {
+      const school = await this.prisma.school.findUnique({ where: { schoolCode } });
+      if (!school) throw new BadRequestException('Invalid school code');
+      finalSchoolId = school.id;
+      finalApprovalStatus = 'approved';
+      joinedViaCode = true;
+    } else {
+      const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
+      if (!school) throw new BadRequestException('Invalid school ID');
+      finalSchoolId = school.id;
+      finalApprovalStatus = 'pending';
+      joinedViaCode = false;
+    }
 
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
@@ -207,10 +224,11 @@ export class AuthService {
       data: {
         ...userData,
         password: hashedPassword,
-        schoolId: school.id,
+        schoolId: finalSchoolId,
         role: 'STUDENT',
         accountStatus: 'ACTIVE',
-        approvalStatus: 'pending',
+        approvalStatus: finalApprovalStatus,
+        joinedViaCode,
       },
       select: SAFE_USER_SELECT,
     });

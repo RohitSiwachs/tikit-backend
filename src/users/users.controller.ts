@@ -59,6 +59,24 @@ export class UsersController {
     return this.usersService.assignCards(body.cardId, body.userIds);
   }
 
+  // ─── Approvals ────────────────────────────────────────────────────────────
+
+  @Get('pending-approvals')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get all users pending approval for the school' })
+  getPendingApprovals(@Request() req: any, @Query('schoolId') schoolId?: string) {
+    const targetSchoolId = req.user.role === Role.TIKIT_ADMIN && schoolId ? schoolId : req.user.schoolId;
+    return this.usersService.getPendingApprovals(targetSchoolId);
+  }
+
+  @Get('manual-approvals')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get all approved users who joined without a school code' })
+  getManualApprovals(@Request() req: any, @Query('schoolId') schoolId?: string) {
+    const targetSchoolId = req.user.role === Role.TIKIT_ADMIN && schoolId ? schoolId : req.user.schoolId;
+    return this.usersService.getManualApprovals(targetSchoolId);
+  }
+
   @Get(':id/engagement')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({

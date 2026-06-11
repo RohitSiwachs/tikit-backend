@@ -43,6 +43,7 @@ import { VouchersModule } from './vouchers/vouchers.module';
 import { EmailsModule } from './emails/emails.module';
 import { DeepLinkModule } from './deep-link/deep-link.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { AdminPanelModule } from './admin-panel/admin-panel.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -134,6 +135,7 @@ import { AppController } from './app.controller';
     EmailsModule,
     DeepLinkModule,
     SchedulerModule,
+    AdminPanelModule,
   ],
   controllers: [AppController],
   providers: [

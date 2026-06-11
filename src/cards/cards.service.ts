@@ -77,6 +77,7 @@ export class CardsService {
             email: true,
             avatarUrl: true,
             className: true,
+            school: { select: { id: true, name: true } },
           },
         },
       },

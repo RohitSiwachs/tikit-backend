@@ -245,6 +245,7 @@ export class TicketsService {
             email: true,
             avatarUrl: true,
             username: true,
+            school: { select: { id: true, name: true } },
           },
         },
         event: { select: { id: true, title: true, startsAt: true } },

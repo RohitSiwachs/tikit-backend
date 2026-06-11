@@ -37,9 +37,15 @@ export class RegisterDto {
   @IsString()
   username: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  schoolCode: string;
+  schoolCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  schoolId?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
