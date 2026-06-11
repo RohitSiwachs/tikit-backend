@@ -42,6 +42,11 @@ export class CreatePostDto {
   @IsOptional()
   @IsDateString()
   pollExpiresAt?: string;
+
+  @ApiProperty({ required: false, description: 'ISO date for scheduled publication. Post will be hidden until this time.' })
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
 }
 
 export class UpdatePostDto extends PartialType(CreatePostDto) {}

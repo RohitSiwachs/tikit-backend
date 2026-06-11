@@ -72,6 +72,17 @@ export class PostsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createPostDto: CreatePostDto, authorId: string) {
+    // Validate scheduledAt if provided
+    let scheduledAt: Date | undefined;
+    if (createPostDto.scheduledAt) {
+      scheduledAt = new Date(createPostDto.scheduledAt);
+      if (isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+        throw new BadRequestException(
+          'scheduledAt must be a valid date in the future',
+        );
+      }
+    }
+
     if (createPostDto.postType === PostType.POLL) {
       if (!createPostDto.pollOptions || createPostDto.pollOptions.length < 2) {
         throw new BadRequestException('Poll posts must have at least 2 options');
@@ -88,12 +99,13 @@ export class PostsService {
         );
       }
 
-      const { pollOptions, pollExpiresAt, ...postData } = createPostDto;
+      const { pollOptions, pollExpiresAt, scheduledAt: _, ...postData } = createPostDto;
       const post = await this.prisma.post.create({
         data: {
           ...postData,
           authorId,
           pollExpiresAt: expiresAt,
+          scheduledAt: scheduledAt ?? null,
           pollOptions: {
             create: pollOptions.map((text) => ({ text })),
           },
@@ -111,9 +123,9 @@ export class PostsService {
       return formatPost(post, authorId);
     }
 
-    const { pollOptions: _, pollExpiresAt: __, ...postData } = createPostDto;
+    const { pollOptions: __, pollExpiresAt: ___, scheduledAt: ____, ...postData } = createPostDto;
     const post = await this.prisma.post.create({
-      data: { ...postData, authorId },
+      data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
       include: { author: { select: POST_AUTHOR_SELECT } },
     });
 
@@ -125,6 +137,11 @@ export class PostsService {
 
     const where: any = {
       deletedAt: null,
+      // Exclude posts scheduled for the future
+      OR: [
+        { scheduledAt: null },
+        { scheduledAt: { lte: new Date() } },
+      ],
     };
 
     const [total, posts] = await Promise.all([
@@ -157,7 +174,13 @@ export class PostsService {
   }
 
   async findAll(schoolId?: string, type?: string, userId?: string) {
-    const where: any = {};
+    const where: any = {
+      // Exclude posts scheduled for the future
+      OR: [
+        { scheduledAt: null },
+        { scheduledAt: { lte: new Date() } },
+      ],
+    };
     if (schoolId) where.schoolId = schoolId;
     if (type) where.postType = type;
 

@@ -138,6 +138,53 @@ export class SchoolsService {
     });
   }
 
+  // ─── School Verification ─────────────────────────────────────────────────
+
+  async getVerificationStatus(id: string) {
+    const school = await this.prisma.school.findUnique({
+      where: { id },
+      select: { id: true, name: true, isVerified: true },
+    });
+
+    if (!school) {
+      throw new NotFoundException(`School with ID ${id} not found`);
+    }
+
+    return school;
+  }
+
+  async verifySchool(id: string) {
+    const school = await this.prisma.school.findUnique({ where: { id } });
+    if (!school) {
+      throw new NotFoundException(`School with ID ${id} not found`);
+    }
+
+    if (school.isVerified) {
+      throw new BadRequestException('School is already verified');
+    }
+
+    return this.prisma.school.update({
+      where: { id },
+      data: { isVerified: true },
+    });
+  }
+
+  async removeVerification(id: string) {
+    const school = await this.prisma.school.findUnique({ where: { id } });
+    if (!school) {
+      throw new NotFoundException(`School with ID ${id} not found`);
+    }
+
+    if (!school.isVerified) {
+      throw new BadRequestException('School is not currently verified');
+    }
+
+    return this.prisma.school.update({
+      where: { id },
+      data: { isVerified: false },
+    });
+  }
+
   async uploadStudents(
     schoolId: string,
     students: { email: string; displayName: string; className?: string }[],

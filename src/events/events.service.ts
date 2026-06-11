@@ -33,7 +33,18 @@ export class EventsService {
         'You can only create events for your own school',
       );
     }
-    const { ticketTypes, connectedSchools, ...eventData } = dto;
+    const { ticketTypes, connectedSchools, scheduledAt: scheduledAtStr, ...eventData } = dto;
+
+    // Validate scheduledAt if provided
+    let scheduledAt: Date | undefined;
+    if (scheduledAtStr) {
+      scheduledAt = new Date(scheduledAtStr);
+      if (isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+        throw new BadRequestException(
+          'scheduledAt must be a valid date in the future',
+        );
+      }
+    }
 
     // Internal events: all ticket types are always free
     const normalizedTicketTypes = ticketTypes.map((tt) =>
@@ -47,6 +58,8 @@ export class EventsService {
         ...eventData,
         startsAt: new Date(eventData.startsAt),
         endsAt: new Date(eventData.endsAt),
+        scheduledAt: scheduledAt ?? null,
+        status: scheduledAt ? 'scheduled' : (eventData.status ?? 'draft'),
         connectedSchools: connectedSchools
           ? { connect: connectedSchools.map((id) => ({ id })) }
           : undefined,
@@ -86,10 +99,20 @@ export class EventsService {
 
     // Visibility rule: INTERNAL events are only visible to students of the hosting school.
     // EXTERNAL events are visible to everyone. Admins see everything.
+    // Scheduled-but-not-yet-due events are hidden from students.
     if (requestingUser?.role === 'STUDENT' && requestingUser?.schoolId) {
       where.OR = [
         { eventType: 'EXTERNAL' },
         { eventType: 'INTERNAL', schoolId: requestingUser.schoolId },
+      ];
+      // Students cannot see events that are scheduled but not yet published
+      where.AND = [
+        {
+          OR: [
+            { scheduledAt: null },
+            { scheduledAt: { lte: new Date() } },
+          ],
+        },
       ];
     }
 
@@ -208,11 +231,34 @@ export class EventsService {
     requestingSchoolId?: string | null,
   ) {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
-    const { ticketTypes, connectedSchools, ...updateData } = dto;
+    const { ticketTypes, connectedSchools, scheduledAt: scheduledAtStr, ...updateData } = dto;
 
     const data: any = { ...updateData };
     if (updateData.startsAt) data.startsAt = new Date(updateData.startsAt);
     if (updateData.endsAt) data.endsAt = new Date(updateData.endsAt);
+
+    // Handle scheduledAt update
+    if (scheduledAtStr !== undefined) {
+      if (scheduledAtStr === null) {
+        // Clear scheduling
+        data.scheduledAt = null;
+        // If the event was in scheduled status, revert to draft
+        const currentEvent = await this.prisma.event.findUnique({ where: { id }, select: { status: true } });
+        if (currentEvent?.status === 'scheduled') {
+          data.status = 'draft';
+        }
+      } else {
+        const scheduledAt = new Date(scheduledAtStr);
+        if (isNaN(scheduledAt.getTime()) || scheduledAt <= new Date()) {
+          throw new BadRequestException(
+            'scheduledAt must be a valid date in the future',
+          );
+        }
+        data.scheduledAt = scheduledAt;
+        data.status = 'scheduled';
+      }
+    }
+
     if (connectedSchools) {
       data.connectedSchools = {
         set: connectedSchools.map((schoolId) => ({ id: schoolId })),
@@ -391,9 +437,18 @@ export class EventsService {
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
     if (event.isCancelled)
       throw new BadRequestException('Cannot publish a cancelled event');
+
+    // If event has a future scheduledAt, set status to 'scheduled' instead of immediate publish
+    if (event.scheduledAt && new Date(event.scheduledAt) > new Date()) {
+      return this.prisma.event.update({
+        where: { id },
+        data: { status: 'scheduled' },
+      });
+    }
+
     return this.prisma.event.update({
       where: { id },
-      data: { isPublished: true, status: 'published' },
+      data: { isPublished: true, status: 'published', scheduledAt: null },
     });
   }
 

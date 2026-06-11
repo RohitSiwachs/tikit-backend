@@ -168,6 +168,11 @@ export class CreateEventDto {
   @IsString({ each: true })
   connectedSchools?: string[];
 
+  @ApiProperty({ required: false, description: 'ISO date for scheduled publication. Event will auto-publish at this time.' })
+  @IsOptional()
+  @IsDateString()
+  scheduledAt?: string;
+
   @ApiProperty({ type: [CreateTicketTypeDto] })
   @IsArray()
   @ValidateNested({ each: true })

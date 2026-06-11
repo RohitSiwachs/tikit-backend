@@ -91,6 +91,29 @@ export class SchoolsController {
     return this.schoolsService.update(id, updateSchoolDto);
   }
 
+  // ─── School Verification ─────────────────────────────────────────────────
+
+  @Get(':id/verification')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Get school verification status' })
+  getVerificationStatus(@Param('id') id: string) {
+    return this.schoolsService.getVerificationStatus(id);
+  }
+
+  @Post(':id/verify')
+  @Roles(Role.TIKIT_ADMIN)
+  @ApiOperation({ summary: 'Verify a school (TIKIT_ADMIN only)' })
+  verifySchool(@Param('id') id: string) {
+    return this.schoolsService.verifySchool(id);
+  }
+
+  @Delete(':id/verify')
+  @Roles(Role.TIKIT_ADMIN)
+  @ApiOperation({ summary: 'Remove school verification (TIKIT_ADMIN only)' })
+  removeVerification(@Param('id') id: string) {
+    return this.schoolsService.removeVerification(id);
+  }
+
   @Post(':id/upload-students')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Upload list of students' })

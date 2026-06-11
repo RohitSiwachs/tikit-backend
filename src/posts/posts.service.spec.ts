@@ -62,7 +62,7 @@ describe('PostsService', () => {
           postType: dto.postType,
           schoolId: dto.schoolId,
           authorId: dto.authorId,
-          eventId: undefined,
+          scheduledAt: null,
         },
         include: { author: { select: expect.any(Object) } },
       });

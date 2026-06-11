@@ -155,6 +155,7 @@ model Event {
   isPinned             Boolean  @default(false)
   isPublished          Boolean  @default(false)
   isCancelled          Boolean  @default(false)
+  scheduledAt          DateTime?
 
   sortOrder            Int      @default(1)
   showImGoingButton    Boolean  @default(true)
@@ -179,6 +180,7 @@ model Event {
   @@index([isPublished])
   @@index([startsAt])
   @@index([deletedAt])
+  @@index([scheduledAt])
 }
 
 model TicketType {
@@ -283,8 +285,9 @@ model Post {
 
   // Soft delete
   pollExpiresAt DateTime?
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
+  scheduledAt   DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime  @default(now())
 
   @@index([schoolId])
   @@index([deletedAt])
