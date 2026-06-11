@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendNotificationDto } from './dto/notification.dto';
-import Expo from 'expo-server-sdk';
+// Removed static import of Expo due to ESM issues in production
 import {
   NOTIFICATIONS_QUEUE,
   SEND_NOTIFICATION_JOB,
@@ -45,6 +45,8 @@ export class NotificationsService {
       where,
       select: { id: true, expoPushToken: true },
     });
+
+    const { Expo } = await import('expo-server-sdk');
 
     const validTokens = users
       .map((u) => u.expoPushToken!)

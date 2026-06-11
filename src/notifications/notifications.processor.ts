@@ -1,7 +1,7 @@
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
-import Expo, { ExpoPushMessage } from 'expo-server-sdk';
+import type { ExpoPushMessage } from 'expo-server-sdk';
 import { NOTIFICATIONS_QUEUE } from './notifications.constants';
 
 export interface SendNotificationJobData {
@@ -14,14 +14,16 @@ export interface SendNotificationJobData {
 @Processor(NOTIFICATIONS_QUEUE, { concurrency: 10 })
 export class NotificationsProcessor extends WorkerHost {
   private readonly logger = new Logger(NotificationsProcessor.name);
-  private readonly expo = new Expo({
-    accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
-  });
 
   async process(
     job: Job<SendNotificationJobData>,
   ): Promise<{ sent: number; failed: number }> {
     const { tokens, title, body, data } = job.data;
+    
+    const { Expo } = await import('expo-server-sdk');
+    const expo = new Expo({
+      accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
+    });
 
     this.logger.log(`Job ${job.id}: processing ${tokens.length} tokens`);
 
@@ -40,13 +42,13 @@ export class NotificationsProcessor extends WorkerHost {
       data: data ?? {},
     }));
 
-    const chunks = this.expo.chunkPushNotifications(messages);
+    const chunks = expo.chunkPushNotifications(messages);
     let successCount = 0;
     let failureCount = 0;
 
     for (const chunk of chunks) {
       try {
-        const tickets = await this.expo.sendPushNotificationsAsync(chunk);
+        const tickets = await expo.sendPushNotificationsAsync(chunk);
         tickets.forEach((ticket) => {
           if (ticket.status === 'ok') successCount++;
           else {
