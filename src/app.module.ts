@@ -44,6 +44,7 @@ import { EmailsModule } from './emails/emails.module';
 import { DeepLinkModule } from './deep-link/deep-link.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { AdminPanelModule } from './admin-panel/admin-panel.module';
+import { NotificationTriggersModule } from './notification-triggers/notification-triggers.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -136,6 +137,7 @@ import { AppController } from './app.controller';
     DeepLinkModule,
     SchedulerModule,
     AdminPanelModule,
+    NotificationTriggersModule,
   ],
   controllers: [AppController],
   providers: [

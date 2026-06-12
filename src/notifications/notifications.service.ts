@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationTriggersService } from '../notification-triggers/notification-triggers.service';
 import { SendNotificationDto } from './dto/notification.dto';
-// Removed static import of Expo due to ESM issues in production
 import {
   NOTIFICATIONS_QUEUE,
   SEND_NOTIFICATION_JOB,
@@ -16,6 +16,7 @@ export class NotificationsService {
 
   constructor(
     private prisma: PrismaService,
+    private readonly notificationTriggersService: NotificationTriggersService,
     @InjectQueue(NOTIFICATIONS_QUEUE)
     private readonly notificationsQueue: Queue,
   ) {}
@@ -64,10 +65,21 @@ export class NotificationsService {
       };
     }
 
+    // Check for a notification copy override before dispatching.
+    // If schoolId + eventId (from segmentFilters) + triggerKey are all present,
+    // the persisted override title/body replaces the caller-supplied defaults.
+    const { title, body } = await this.notificationTriggersService.resolveContent(
+      segmentFilters.schoolId,
+      segmentFilters.eventId,
+      dto.triggerKey,
+      dto.title,
+      dto.body,
+    );
+
     const jobData: SendNotificationJobData = {
       tokens: validTokens,
-      title: dto.title,
-      body: dto.body,
+      title,
+      body,
       data: dto.data ?? {},
     };
 

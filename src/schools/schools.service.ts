@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
+import { BulkCreateSchoolItemDto } from './dto/bulk-create-school.dto';
 import { EmailsService } from '../emails/emails.service';
 
 @Injectable()
@@ -322,6 +323,90 @@ export class SchoolsService {
 
     return {
       message: `Assigned card ${cardId} to ${students.length} students in classes: ${classNames.join(', ')}`,
+    };
+  }
+
+  // ─── Bulk School Creation ─────────────────────────────────────────────────
+
+  async bulkCreate(rows: BulkCreateSchoolItemDto[]): Promise<{
+    created: number;
+    failed: number;
+    errors: { row: number; slug: string; reason: string }[];
+  }> {
+    const errors: { row: number; slug: string; reason: string }[] = [];
+    const toCreate: { idx: number; data: Record<string, any> }[] = [];
+    const slugsSeen = new Set<string>();
+
+    // ── Per-row validation ────────────────────────────────────────────────────
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 1;
+
+      if (!row.name?.trim() || !row.slug?.trim() || !row.city?.trim()) {
+        errors.push({ row: rowNum, slug: row.slug ?? '', reason: 'name, slug and city are required' });
+        continue;
+      }
+
+      const slug = row.slug.trim().toLowerCase();
+
+      if (slugsSeen.has(slug)) {
+        errors.push({ row: rowNum, slug, reason: 'Duplicate slug within request' });
+        continue;
+      }
+      slugsSeen.add(slug);
+
+      // Auto-generate a unique schoolCode from slug + random hex suffix
+      const codeBase = slug.replace(/-/g, '').toUpperCase().slice(0, 8);
+      const schoolCode = `${codeBase}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+
+      toCreate.push({
+        idx: rowNum,
+        data: {
+          name: row.name.trim(),
+          slug,
+          city: row.city.trim(),
+          description: row.description?.trim() ?? null,
+          schoolCode,
+        },
+      });
+    }
+
+    if (toCreate.length === 0) {
+      return { created: 0, failed: rows.length, errors };
+    }
+
+    // ── Check DB for already-existing slugs ───────────────────────────────────
+    const existingSlugs = await this.prisma.school.findMany({
+      where: { slug: { in: toCreate.map((r) => r.data.slug) } },
+      select: { slug: true },
+    });
+    const existingSet = new Set(existingSlugs.map((s) => s.slug));
+
+    const finalCreate = toCreate.filter((r) => {
+      if (existingSet.has(r.data.slug)) {
+        errors.push({ row: r.idx, slug: r.data.slug, reason: 'Slug already exists in database' });
+        return false;
+      }
+      return true;
+    });
+
+    if (finalCreate.length > 0) {
+      await this.prisma.school.createMany({
+        data: finalCreate.map((r) => ({
+          name: r.data.name as string,
+          slug: r.data.slug as string,
+          city: r.data.city as string,
+          description: r.data.description as string | null,
+          schoolCode: r.data.schoolCode as string,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return {
+      created: finalCreate.length,
+      failed: rows.length - finalCreate.length,
+      errors,
     };
   }
 

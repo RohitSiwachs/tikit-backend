@@ -24,6 +24,7 @@ import {
   AssignCardsToSchoolDto,
 } from './dto/school-actions.dto';
 import { CreateClassDto, UpdateClassDto } from './dto/classes.dto';
+import { BulkCreateSchoolsDto } from './dto/bulk-create-school.dto';
 
 @ApiTags('schools')
 @ApiBearerAuth()
@@ -36,6 +37,16 @@ export class SchoolsController {
   @ApiOperation({ summary: 'Create a new school (Admin only)' })
   create(@Body() createSchoolDto: CreateSchoolDto) {
     return this.schoolsService.create(createSchoolDto);
+  }
+
+  @Post('bulk')
+  @Roles(Role.TIKIT_ADMIN)
+  @ApiOperation({
+    summary: 'Bulk-create schools (Admin only). Validates every row, skips invalid/duplicate slugs, returns created/failed/errors.',
+  })
+  @ApiBody({ type: BulkCreateSchoolsDto })
+  bulkCreate(@Body() body: BulkCreateSchoolsDto) {
+    return this.schoolsService.bulkCreate(body.schools);
   }
 
   @Get('public')

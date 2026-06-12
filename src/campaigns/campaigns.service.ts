@@ -125,23 +125,67 @@ export class CampaignsService {
     return { message: 'Campaign send started', campaignId: id };
   }
 
+  // Builds a Prisma `where` clause from stored segmentFilters + channel enforcement.
+  // All conditions are combined with AND. Channel opt-in is mandatory and applied last.
+  private buildUserWhere(filters: Record<string, any>, channel: string): any {
+    const where: any = { deletedAt: null };
+    const andConditions: any[] = [];
+
+    // ── Scalar field filters ─────────────────────────────────────────────────
+    if (filters.schoolId) where.schoolId = filters.schoolId;
+    if (filters.className) where.className = filters.className;
+    if (filters.gender) where.gender = filters.gender;
+    if (filters.role) where.role = filters.role;
+
+    // ── Consent flags ────────────────────────────────────────────────────────
+    if (filters.marketingOptIn !== undefined) where.marketingConsent = filters.marketingOptIn;
+    if (filters.partnerOptIn !== undefined) where.partnerConsent = filters.partnerOptIn;
+
+    // ── Notification channel opt-in from segment filters ─────────────────────
+    // Applied before channel enforcement; channel enforcement below always wins.
+    if (filters.pushEnabled !== undefined) where.notifPush = filters.pushEnabled;
+    if (filters.emailEnabled !== undefined) where.notifEmail = filters.emailEnabled;
+    if (filters.smsEnabled !== undefined) where.notifSms = filters.smsEnabled;
+
+    // ── Age range ─────────────────────────────────────────────────────────────
+    if (filters.minAge !== undefined || filters.maxAge !== undefined) {
+      where.age = {};
+      if (filters.minAge !== undefined) where.age.gte = filters.minAge;
+      if (filters.maxAge !== undefined) where.age.lte = filters.maxAge;
+    }
+
+    // ── Relation filters (collected into AND to avoid key collisions) ─────────
+    if (filters.goingEventId) {
+      andConditions.push({ tickets: { some: { eventId: filters.goingEventId } } });
+    }
+    if (filters.cardId) {
+      andConditions.push({ cardCodes: { some: { cardId: filters.cardId } } });
+    }
+    if (filters.fetchedTicketEventId) {
+      andConditions.push({
+        tickets: { some: { eventId: filters.fetchedTicketEventId, status: 'ISSUED' } },
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    // ── Channel opt-in enforcement — mandatory, applied last ──────────────────
+    if (channel === 'push') where.notifPush = true;
+    if (channel === 'sms') where.notifSms = true;
+    if (channel === 'email') where.notifEmail = true;
+
+    return where;
+  }
+
   // Called by triggerSend (via setImmediate) and by the scheduler.
   // Processes users in cursor-based batches to avoid loading all users into heap at once.
   async runSend(id: string): Promise<void> {
     const campaign = await this.findOne(id);
     const filters: any = (campaign.segmentFilters as any) ?? {};
 
-    const baseWhere: any = {
-      deletedAt: null, // Never contact GDPR-deleted users
-    };
-    if (filters.schoolId) baseWhere.schoolId = filters.schoolId;
-    if (filters.className) baseWhere.className = filters.className;
-    if (filters.role) baseWhere.role = filters.role;
-
-    // Respect per-channel notification preferences — never contact opted-out users
-    if (campaign.channel === 'push') baseWhere.notifPush = true;
-    if (campaign.channel === 'sms') baseWhere.notifSms = true;
-    if (campaign.channel === 'email') baseWhere.notifEmail = true;
+    const baseWhere = this.buildUserWhere(filters, campaign.channel);
 
     let cursor: string | undefined;
     let totalSent = 0;
