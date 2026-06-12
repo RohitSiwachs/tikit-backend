@@ -10,7 +10,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
 import { CommunicationUsageService } from '../communication/communication-usage.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
-import Expo from 'expo-server-sdk';
 import { CAMPAIGNS_QUEUE, SEND_CAMPAIGN_JOB } from './campaigns.constants';
 
 // Campaign status state machine:
@@ -22,12 +21,29 @@ type Channel = 'push' | 'email' | 'sms';
 
 const BATCH_SIZE = 100;
 
+// Lazily loaded ESM module — expo-server-sdk v6+ is ESM-only
+let _expoModule: typeof import('expo-server-sdk') | null = null;
+async function getExpoModule() {
+  if (!_expoModule) {
+    _expoModule = await import('expo-server-sdk');
+  }
+  return _expoModule;
+}
+
 @Injectable()
 export class CampaignsService {
   private readonly logger = new Logger(CampaignsService.name);
-  private readonly expo = new Expo({
-    accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
-  });
+  private expo: InstanceType<(typeof import('expo-server-sdk'))['Expo']> | null = null;
+
+  private async getExpo() {
+    if (!this.expo) {
+      const { Expo } = await getExpoModule();
+      this.expo = new Expo({
+        accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
+      });
+    }
+    return this.expo;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -183,6 +199,8 @@ export class CampaignsService {
     let sent = 0;
 
     if (campaign.channel === 'push') {
+      const { Expo } = await getExpoModule();
+      const expo = await this.getExpo();
       const messages = batch
         .filter((u) => u.expoPushToken && Expo.isExpoPushToken(u.expoPushToken))
         .map((u) => ({
@@ -194,10 +212,10 @@ export class CampaignsService {
         }));
 
       if (messages.length > 0) {
-        const chunks = this.expo.chunkPushNotifications(messages);
+        const chunks = expo.chunkPushNotifications(messages);
         for (const chunk of chunks) {
           try {
-            const results = await this.expo.sendPushNotificationsAsync(chunk);
+            const results = await expo.sendPushNotificationsAsync(chunk);
             sent += results.filter((r) => r.status === 'ok').length;
           } catch (err) {
             this.logger.error('Push chunk failed', err.message);
