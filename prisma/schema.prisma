@@ -30,9 +30,17 @@ model School {
   cards              Card[]
   posts              Post[]
   classes            Class[]
+  // ── Shared school code controls ──────────────────────────────────────────
+  sharedCodeEnabled           Boolean   @default(true)
+  sharedCodeExpiry            DateTime?
+  sharedCodeMaxRedemptions    Int?
+  sharedCodeRedemptionCount   Int       @default(0)
+  sharedCodeApprovalRequired  Boolean   @default(false)
+
   connectionRequests           EventConnectionRequest[]
   communicationAllocation      CommunicationAllocation?
   notificationTriggerOverrides NotificationTriggerOverride[]
+  inviteCodes                  SchoolInviteCode[]
   createdAt               DateTime                 @default(now())
 
   @@index([isActive])
@@ -115,10 +123,11 @@ model User {
   eventComments EventComment[]
   refreshTokens RefreshToken[]
   vouchers      Voucher[]
-  postLikes     PostLike[]
-  postComments  PostComment[]
-  pollVotes     PollVote[]
-  createdAt     DateTime       @default(now())
+  postLikes           PostLike[]
+  postComments        PostComment[]
+  pollVotes           PollVote[]
+  redeemedInviteCodes SchoolInviteCode[] @relation("RedeemedInviteCodes")
+  createdAt           DateTime           @default(now())
 
   @@index([schoolId])
   @@index([role])
@@ -444,6 +453,25 @@ model PollVote {
   @@unique([postId, userId])
   @@index([optionId])
   @@index([userId])
+}
+
+model SchoolInviteCode {
+  id            String    @id @default(uuid())
+  schoolId      String
+  school        School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  code          String    @unique
+  studentName   String?
+  studentEmail  String?
+  isUsed        Boolean   @default(false)
+  usedByUserId  String?
+  usedBy        User?     @relation("RedeemedInviteCodes", fields: [usedByUserId], references: [id], onDelete: SetNull)
+  usedAt        DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([schoolId])
+  @@index([isUsed])
 }
 
 model NotificationTriggerOverride {

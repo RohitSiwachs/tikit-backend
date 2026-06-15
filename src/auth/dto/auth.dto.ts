@@ -2,11 +2,25 @@ import {
   IsString,
   IsEmail,
   IsOptional,
-  IsBoolean,
   MinLength,
   MaxLength,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+  Validate,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+@ValidatorConstraint({ name: 'atMostOneSchoolField', async: false })
+class AtMostOneSchoolFieldConstraint implements ValidatorConstraintInterface {
+  validate(_: unknown, { object }: ValidationArguments): boolean {
+    const { schoolCode, schoolId, inviteCode } = object as any;
+    return [schoolCode, schoolId, inviteCode].filter(Boolean).length <= 1;
+  }
+  defaultMessage(): string {
+    return 'Provide at most one of schoolCode, schoolId, or inviteCode.';
+  }
+}
 
 export class LoginDto {
   @ApiProperty()
@@ -37,15 +51,23 @@ export class RegisterDto {
   @IsString()
   username: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Shared school code (existing flow)' })
   @IsOptional()
   @IsString()
   schoolCode?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Join by school ID — requires admin approval' })
   @IsOptional()
   @IsString()
   schoolId?: string;
+
+  @ApiPropertyOptional({ description: 'Individual invite code — auto-approves and links to school' })
+  @IsOptional()
+  @IsString()
+  @Validate(AtMostOneSchoolFieldConstraint, {
+    message: 'Provide at most one of schoolCode, schoolId, or inviteCode.',
+  })
+  inviteCode?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

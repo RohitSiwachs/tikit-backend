@@ -188,35 +188,72 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
-    const { schoolCode, schoolId, password, ...userData } = dto;
+    const { schoolCode, schoolId, inviteCode, password, ...userData } = dto;
 
-    if (!schoolCode && !schoolId) {
-      throw new BadRequestException('Either schoolCode or schoolId must be provided');
+    // Guard: only one school-joining mechanism is allowed per registration.
+    // The DTO @Validate catches cases where inviteCode is present alongside another
+    // field; this service-level check is defence-in-depth and also catches the
+    // schoolCode + schoolId combo (where inviteCode is absent, so the DTO validator
+    // never fires).
+    if ([schoolCode, schoolId, inviteCode].filter(Boolean).length > 1) {
+      throw new BadRequestException(
+        'Provide at most one of schoolCode, schoolId, or inviteCode.',
+      );
     }
 
-    let finalSchoolId: string;
+    let finalSchoolId: string | null = null;
     let finalApprovalStatus = 'pending';
     let joinedViaCode = false;
+    let redeemedInviteCodeId: string | null = null;
 
+    // ── Shared school code (existing flow with new controls) ─────────────────
     if (schoolCode) {
       const school = await this.prisma.school.findUnique({ where: { schoolCode } });
       if (!school) throw new BadRequestException('Invalid school code');
+
+      if (!school.sharedCodeEnabled)
+        throw new BadRequestException('This school code is currently disabled');
+      if (school.sharedCodeExpiry && school.sharedCodeExpiry < new Date())
+        throw new BadRequestException('This school code has expired');
+      if (
+        school.sharedCodeMaxRedemptions !== null &&
+        school.sharedCodeRedemptionCount >= school.sharedCodeMaxRedemptions
+      )
+        throw new BadRequestException('This school code has reached its maximum number of uses');
+
       finalSchoolId = school.id;
+      finalApprovalStatus = school.sharedCodeApprovalRequired ? 'pending' : 'approved';
+      joinedViaCode = true;
+
+    // ── Individual invite code (new flow) ────────────────────────────────────
+    } else if (inviteCode) {
+      const invite = await this.prisma.schoolInviteCode.findUnique({
+        where: { code: inviteCode.toUpperCase() },
+      });
+      if (!invite) throw new BadRequestException('Invalid invite code');
+      if (invite.isUsed) throw new BadRequestException('Invite code has already been used');
+      if (invite.expiresAt && invite.expiresAt < new Date())
+        throw new BadRequestException('Invite code has expired');
+
+      finalSchoolId = invite.schoolId;
       finalApprovalStatus = 'approved';
       joinedViaCode = true;
-    } else {
+      redeemedInviteCodeId = invite.id;
+
+    // ── Direct school join by ID — requires manual admin approval ────────────
+    } else if (schoolId) {
       const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
       if (!school) throw new BadRequestException('Invalid school ID');
       finalSchoolId = school.id;
       finalApprovalStatus = 'pending';
       joinedViaCode = false;
     }
+    // No school provided — allowed; student redeems an invite code separately.
 
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
-    if (existing)
-      throw new BadRequestException('Email or username already taken');
+    if (existing) throw new BadRequestException('Email or username already taken');
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -233,11 +270,34 @@ export class AuthService {
       select: SAFE_USER_SELECT,
     });
 
-    this.emailsService
-      .sendWelcomeEmail(user.email, user.displayName)
-      .catch((err) => {
-        this.logger.error('Failed to send welcome email', err.stack);
-      });
+    // Post-registration side-effects (non-blocking)
+    const sideEffects: Promise<any>[] = [
+      this.emailsService
+        .sendWelcomeEmail(user.email, user.displayName)
+        .catch((err) => this.logger.error('Failed to send welcome email', err.stack)),
+    ];
+
+    if (schoolCode && finalSchoolId) {
+      // Increment shared-code redemption counter atomically
+      sideEffects.push(
+        this.prisma.school.update({
+          where: { id: finalSchoolId },
+          data: { sharedCodeRedemptionCount: { increment: 1 } },
+        }),
+      );
+    }
+
+    if (redeemedInviteCodeId) {
+      // Mark individual invite code as used
+      sideEffects.push(
+        this.prisma.schoolInviteCode.update({
+          where: { id: redeemedInviteCodeId },
+          data: { isUsed: true, usedByUserId: user.id, usedAt: new Date() },
+        }),
+      );
+    }
+
+    await Promise.allSettled(sideEffects);
 
     return user;
   }

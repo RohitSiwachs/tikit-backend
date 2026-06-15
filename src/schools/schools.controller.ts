@@ -7,10 +7,11 @@ import {
   Param,
   Delete,
   Query,
-  UseGuards,
   Request,
   ForbiddenException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
@@ -25,6 +26,7 @@ import {
 } from './dto/school-actions.dto';
 import { CreateClassDto, UpdateClassDto } from './dto/classes.dto';
 import { BulkCreateSchoolsDto } from './dto/bulk-create-school.dto';
+import { GenerateIndividualCodesDto, RedeemIndividualCodeDto } from './dto/invite-code.dto';
 
 @ApiTags('schools')
 @ApiBearerAuth()
@@ -47,6 +49,18 @@ export class SchoolsController {
   @ApiBody({ type: BulkCreateSchoolsDto })
   bulkCreate(@Body() body: BulkCreateSchoolsDto) {
     return this.schoolsService.bulkCreate(body.schools);
+  }
+
+  // Must be before /:id routes to avoid routing conflict
+  @Post('redeem-individual-code')
+  @Roles(Role.STUDENT)
+  @ApiOperation({ summary: 'Redeem an individual invite code — links student to school (auto-approved)' })
+  @ApiBody({ type: RedeemIndividualCodeDto })
+  redeemIndividualCode(
+    @Body() body: RedeemIndividualCodeDto,
+    @Request() req: any,
+  ) {
+    return this.schoolsService.redeemIndividualCode(req.user.id, body.code);
   }
 
   @Get('public')
@@ -123,6 +137,61 @@ export class SchoolsController {
   @ApiOperation({ summary: 'Remove school verification (TIKIT_ADMIN only)' })
   removeVerification(@Param('id') id: string) {
     return this.schoolsService.removeVerification(id);
+  }
+
+  // ─── Individual Invite Codes ───────────────────────────────────────────────
+
+  @Post(':id/individual-codes')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Generate individual invite codes for a school (1–500)' })
+  @ApiBody({ type: GenerateIndividualCodesDto })
+  generateIndividualCodes(
+    @Param('id') id: string,
+    @Body() dto: GenerateIndividualCodesDto,
+    @Request() req: any,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    return this.schoolsService.generateIndividualCodes(id, dto);
+  }
+
+  @Get(':id/individual-codes')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'List individual invite codes for a school (paginated)' })
+  listIndividualCodes(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    return this.schoolsService.listIndividualCodes(
+      id,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
+  }
+
+  @Post(':id/individual-codes/export')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Export all individual invite codes as a CSV download' })
+  async exportIndividualCodes(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
+    if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
+      throw new ForbiddenException('You can only manage your own school');
+    }
+    const csv = await this.schoolsService.exportIndividualCodes(id);
+    res.set({
+      'Content-Type': 'text/csv',
+      'Content-Disposition': `attachment; filename="invite-codes-${id}.csv"`,
+    });
+    res.send(csv);
   }
 
   @Post(':id/upload-students')

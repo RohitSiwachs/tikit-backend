@@ -20,10 +20,6 @@ import { SmsModule } from '../sms/sms.module';
     JwtModule.registerAsync({
       inject: [ConfigService],
  useFactory: (config: ConfigService) => {
-  console.log(
-    'JWT_ACCESS_EXPIRATION =',
-    JSON.stringify(config.get('jwt.accessExpiration')),
-  );
 
   return {
     privateKey: config.get('jwt.privateKey'),

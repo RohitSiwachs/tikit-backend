@@ -1,6 +1,6 @@
 import { PartialType, OmitType } from '@nestjs/swagger';
 import { CreateSchoolDto } from './create-school.dto';
-import { IsOptional, IsString, IsInt, Min, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, IsNumber, IsBoolean } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UpdateSchoolDto extends PartialType(
@@ -48,4 +48,27 @@ export class UpdateSchoolDto extends PartialType(
   @IsNumber({ maxDecimalPlaces: 4 })
   @Min(0)
   smsPrice?: number;
+
+  // ── Shared school code controls (KARORDFORANDE or TIKIT_ADMIN) ──
+
+  @ApiProperty({ required: false, description: 'Enable or disable the shared school code' })
+  @IsOptional()
+  @IsBoolean()
+  sharedCodeEnabled?: boolean;
+
+  @ApiProperty({ required: false, description: 'ISO date string — shared code expires at this datetime' })
+  @IsOptional()
+  @IsString()
+  sharedCodeExpiry?: string;
+
+  @ApiProperty({ required: false, description: 'Max redemptions allowed via shared code. null = unlimited.' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  sharedCodeMaxRedemptions?: number;
+
+  @ApiProperty({ required: false, description: 'Require admin approval when joining via shared code' })
+  @IsOptional()
+  @IsBoolean()
+  sharedCodeApprovalRequired?: boolean;
 }

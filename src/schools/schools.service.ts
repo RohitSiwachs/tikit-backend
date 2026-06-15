@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
 import { BulkCreateSchoolItemDto } from './dto/bulk-create-school.dto';
+import { GenerateIndividualCodesDto } from './dto/invite-code.dto';
 import { EmailsService } from '../emails/emails.service';
 
 @Injectable()
@@ -408,6 +409,131 @@ export class SchoolsService {
       failed: rows.length - finalCreate.length,
       errors,
     };
+  }
+
+  // ─── Individual Invite Codes ──────────────────────────────────────────────
+
+  async generateIndividualCodes(
+    schoolId: string,
+    dto: GenerateIndividualCodesDto,
+  ): Promise<{ generated: number; codes: string[] }> {
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true },
+    });
+    if (!school) throw new NotFoundException(`School ${schoolId} not found`);
+
+    const count = Math.min(Math.max(dto.count ?? 1, 1), 500);
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+
+    const codes = Array.from({ length: count }, () =>
+      crypto.randomBytes(6).toString('hex').toUpperCase(),
+    );
+
+    await this.prisma.schoolInviteCode.createMany({
+      data: codes.map((code) => ({
+        schoolId,
+        code,
+        studentName: dto.studentName ?? null,
+        studentEmail: dto.studentEmail ?? null,
+        expiresAt,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { generated: count, codes };
+  }
+
+  async listIndividualCodes(
+    schoolId: string,
+    page = 1,
+    limit = 50,
+  ): Promise<{ data: any[]; meta: any }> {
+    const skip = (page - 1) * limit;
+    const [total, data] = await Promise.all([
+      this.prisma.schoolInviteCode.count({ where: { schoolId } }),
+      this.prisma.schoolInviteCode.findMany({
+        where: { schoolId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          usedBy: { select: { id: true, displayName: true, email: true } },
+        },
+      }),
+    ]);
+
+    return {
+      data,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  async exportIndividualCodes(schoolId: string): Promise<string> {
+    const codes = await this.prisma.schoolInviteCode.findMany({
+      where: { schoolId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const header = 'code,studentName,studentEmail,isUsed,usedAt,expiresAt,createdAt';
+    const rows = codes.map((c) =>
+      [
+        c.code,
+        c.studentName ?? '',
+        c.studentEmail ?? '',
+        c.isUsed ? 'true' : 'false',
+        c.usedAt?.toISOString() ?? '',
+        c.expiresAt?.toISOString() ?? '',
+        c.createdAt.toISOString(),
+      ].join(','),
+    );
+
+    return [header, ...rows].join('\n');
+  }
+
+  async redeemIndividualCode(
+    userId: string,
+    code: string,
+  ): Promise<{ message: string }> {
+    // Validate the code before opening a transaction — these checks are cheap reads
+    // and their failure should not consume a transaction slot.
+    const invite = await this.prisma.schoolInviteCode.findUnique({
+      where: { code },
+    });
+
+    if (!invite) throw new NotFoundException('Invite code not found');
+    if (invite.isUsed) throw new BadRequestException('This invite code has already been used');
+    if (invite.expiresAt && invite.expiresAt < new Date()) {
+      throw new BadRequestException('This invite code has expired');
+    }
+
+    // Callback-form transaction: the schoolId guard and both writes are a single
+    // atomic unit. This eliminates the TOCTOU race where two concurrent requests
+    // for the same user could both pass the guard and each overwrite schoolId.
+    await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { schoolId: true },
+      });
+
+      if (user?.schoolId) {
+        throw new BadRequestException('You already belong to a school.');
+      }
+
+      const now = new Date();
+
+      await tx.schoolInviteCode.update({
+        where: { code },
+        data: { isUsed: true, usedByUserId: userId, usedAt: now },
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: { schoolId: invite.schoolId, approvalStatus: 'approved', joinedViaCode: true },
+      });
+    });
+
+    return { message: 'School joined successfully' };
   }
 
   // ─── Classes CRUD ─────────────────────────────────────────────────────────
