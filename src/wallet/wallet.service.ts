@@ -12,41 +12,63 @@ export class WalletService {
   async getWallet(userId: string) {
     const now = new Date();
 
-    // Fetch logged-in user profile details for cards/tickets detail screens
-    const userProfile = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        displayName: true,
-        firstName: true,
-        lastName: true,
-        username: true,
-        birthdate: true,
-        avatarUrl: true,
-      },
-    });
+    // All three queries are independent — fire in parallel to eliminate sequential round-trips.
+    // Before: ~3 × DB RTT ≈ 150–300ms. After: max(RTT_userProfile, RTT_tickets, RTT_cards).
+    const [userProfile, tickets, cardCodes] = await Promise.all([
+      // Fetch logged-in user profile details for cards/tickets detail screens
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          displayName: true,
+          firstName: true,
+          lastName: true,
+          username: true,
+          birthdate: true,
+          avatarUrl: true,
+        },
+      }),
 
-    // Get Tickets including TicketType name/desc
-    const tickets = await this.prisma.ticket.findMany({
-      where: { userId },
-      include: {
-        event: {
-          select: {
-            id: true,
-            title: true,
-            startsAt: true,
-            endsAt: true,
-            venueName: true,
-            coverUrl: true,
+      // Get Tickets including TicketType name/desc
+      this.prisma.ticket.findMany({
+        where: { userId },
+        include: {
+          event: {
+            select: {
+              id: true,
+              title: true,
+              startsAt: true,
+              endsAt: true,
+              venueName: true,
+              coverUrl: true,
+            },
+          },
+          ticketType: {
+            select: {
+              name: true,
+              description: true,
+            },
           },
         },
-        ticketType: {
-          select: {
-            name: true,
-            description: true,
+      }),
+
+      // Get Activated Cards including School branding info
+      this.prisma.cardCode.findMany({
+        where: { userId, isUsed: true },
+        include: {
+          card: {
+            include: {
+              school: {
+                select: {
+                  name: true,
+                  slug: true,
+                  logoUrl: true,
+                },
+              },
+            },
           },
         },
-      },
-    });
+      }),
+    ]);
 
     const formattedTickets = tickets.map((ticket) => ({
       id: ticket.id,
@@ -59,24 +81,6 @@ export class WalletService {
       event: ticket.event,
       isExpired: ticket.event.endsAt < now,
     }));
-
-    // Get Activated Cards including School branding info
-    const cardCodes = await this.prisma.cardCode.findMany({
-      where: { userId, isUsed: true },
-      include: {
-        card: {
-          include: {
-            school: {
-              select: {
-                name: true,
-                slug: true,
-                logoUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
 
     const formattedCards = cardCodes.map((code) => ({
       id: code.id,

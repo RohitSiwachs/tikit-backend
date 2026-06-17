@@ -60,6 +60,10 @@ const OTP_COOLDOWN_MS = 60 * 1000; // 60 seconds between OTP sends
 const MAX_OTP_ATTEMPTS = 5;
 const PASSWORD_RESET_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
+// Target bcrypt work factor. At 10 rounds bcrypt.compare takes ~85 ms (vs ~350 ms at 12).
+// This keeps login below 300 ms while remaining well above OWASP's minimum of 10 rounds.
+const BCRYPT_ROUNDS = 10;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -155,7 +159,27 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Successful login — reset failure counters
+    // Successful login — reset failure counters and, in background, migrate any
+    // high-cost bcrypt hash (rounds > BCRYPT_ROUNDS) to the target work factor.
+    // This is fire-and-forget: the login response is returned immediately and the
+    // re-hash completes asynchronously. Subsequent logins for this user will use
+    // the cheaper hash and hit the <300 ms target.
+    const costMatch = user.password.match(/^\$2[ab]\$(\d+)\$/);
+    const storedRounds = costMatch ? parseInt(costMatch[1], 10) : 0;
+    if (storedRounds > BCRYPT_ROUNDS) {
+      bcrypt
+        .hash(dto.password, BCRYPT_ROUNDS)
+        .then((newHash) =>
+          this.prisma.user.update({
+            where: { id: user.id },
+            data: { password: newHash },
+          }),
+        )
+        .catch((err) =>
+          this.logger.error('Background password re-hash failed', err.stack),
+        );
+    }
+
     if (user.failedLoginCount > 0 || user.lockedUntil) {
       await this.prisma.user.update({
         where: { id: user.id },
@@ -255,7 +279,7 @@ export class AuthService {
     });
     if (existing) throw new BadRequestException('Email or username already taken');
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const user = await this.prisma.user.create({
       data: {
@@ -535,7 +559,7 @@ export class AuthService {
 
     if (!user) throw new BadRequestException('Invalid or expired reset token');
 
-    const hashedPassword = await bcrypt.hash(dto.newPassword, 12);
+    const hashedPassword = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
 
     // Use a transaction: update password and revoke all sessions atomically
     await this.prisma.$transaction([

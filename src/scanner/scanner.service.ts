@@ -95,13 +95,16 @@ export class ScannerService {
       );
     }
 
-    // Re-read the updated record so checkedInAt reflects the actual DB timestamp
-    const updated = await this.prisma.ticket.findUnique({
-      where: { id: ticket.id },
-      select: { status: true, checkedInAt: true },
-    });
-
-    const eventStats = await this.getEventStats(ticket.eventId);
+    // Re-read the updated record and fetch event stats in parallel — both depend only
+    // on the completed updateMany, not on each other.
+    // Before: re-read RTT + stats RTT (sequential). After: max(re-read RTT, stats RTT).
+    const [updated, eventStats] = await Promise.all([
+      this.prisma.ticket.findUnique({
+        where: { id: ticket.id },
+        select: { status: true, checkedInAt: true },
+      }),
+      this.getEventStats(ticket.eventId),
+    ]);
 
     this.eventsGateway.emitCheckinUpdate(ticket.eventId, {
       userId: ticket.user.id,

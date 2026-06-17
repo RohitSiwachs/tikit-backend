@@ -208,50 +208,52 @@ export class UsersService {
   }
 
   async getProfile(username: string, requestingUserId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { username },
-      select: {
-        id: true,
-        displayName: true,
-        username: true,
-        avatarUrl: true,
-        school: { select: { id: true, name: true } },
-        className: true,
-        biography: true,
-        achievements: true,
-        socialLinks: true,
-        isVisibleToOtherSchools: true,
-        isPrivateAccount: true,
-        _count: {
-          select: {
-            followers: true,
-            friends: true,
-            tickets: true,
-          },
-        },
-        followers: {
-          where: { id: requestingUserId },
-        },
-        tickets: {
-          where: {
-            event: {
-              startsAt: { gte: new Date() }, // optional: only upcoming events
+    // Both lookups are independent — run in parallel to save one sequential round-trip.
+    const [user, requestingUser] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { username },
+        select: {
+          id: true,
+          displayName: true,
+          username: true,
+          avatarUrl: true,
+          school: { select: { id: true, name: true } },
+          className: true,
+          biography: true,
+          achievements: true,
+          socialLinks: true,
+          isVisibleToOtherSchools: true,
+          isPrivateAccount: true,
+          _count: {
+            select: {
+              followers: true,
+              friends: true,
+              tickets: true,
             },
           },
-          include: {
-            event: true,
+          followers: {
+            where: { id: requestingUserId },
           },
-          take: 10,
+          tickets: {
+            where: {
+              event: {
+                startsAt: { gte: new Date() }, // optional: only upcoming events
+              },
+            },
+            include: {
+              event: true,
+            },
+            take: 10,
+          },
         },
-      },
-    });
+      }),
+      this.prisma.user.findUnique({
+        where: { id: requestingUserId },
+      }),
+    ]);
 
     if (!user)
       throw new NotFoundException(`User profile for ${username} not found`);
-
-    const requestingUser = await this.prisma.user.findUnique({
-      where: { id: requestingUserId },
-    });
 
     // Privacy Rules Evaluation
     let isDetailedViewAllowed = true;

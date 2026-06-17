@@ -194,6 +194,8 @@ model Event {
   @@index([startsAt])
   @@index([deletedAt])
   @@index([scheduledAt])
+  @@index([isPublished, startsAt])              // event listing: WHERE isPublished ORDER BY startsAt
+  @@index([schoolId, isPublished, startsAt])    // school-scoped listing with ORDER BY startsAt
 }
 
 model TicketType {
@@ -238,6 +240,8 @@ model Ticket {
   @@index([userId])
   @@index([eventId])
   @@index([status])
+  @@index([userId, status])   // wallet: WHERE userId + status filter
+  @@index([eventId, status])  // scanner stats: WHERE eventId + status counts
 }
 
 model Voucher {
@@ -304,6 +308,7 @@ model Post {
 
   @@index([schoolId])
   @@index([deletedAt])
+  @@index([deletedAt, createdAt])  // feed: WHERE deletedAt IS NULL ORDER BY createdAt DESC
 }
 
 model PostLike {

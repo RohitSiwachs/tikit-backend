@@ -142,25 +142,39 @@ export class EventsService {
   }
 
   async findOne(id: string, requestingUserId?: string) {
-    const event = await this.prisma.event.findUnique({
-      where: { id },
-      include: {
-        school: { select: { id: true, name: true, logoUrl: true } },
-        ticketTypes: true,
-        _count: {
-          select: { tickets: true, likes: true, comments: true },
+    // Fire event and requesting-user lookups in parallel — they are independent.
+    // Before: event RTT + user RTT (sequential). After: max(event RTT, user RTT).
+    const [event, requestingUser] = await Promise.all([
+      this.prisma.event.findUnique({
+        where: { id },
+        include: {
+          school: { select: { id: true, name: true, logoUrl: true } },
+          ticketTypes: true,
+          _count: {
+            select: { tickets: true, likes: true, comments: true },
+          },
+          likes: requestingUserId
+            ? { where: { userId: requestingUserId } }
+            : false,
+          tickets: requestingUserId
+            ? {
+                where: { userId: requestingUserId },
+                select: { id: true, status: true },
+              }
+            : false,
         },
-        likes: requestingUserId
-          ? { where: { userId: requestingUserId } }
-          : false,
-        tickets: requestingUserId
-          ? {
-              where: { userId: requestingUserId },
-              select: { id: true, status: true },
-            }
-          : false,
-      },
-    });
+      }),
+      requestingUserId
+        ? this.prisma.user.findUnique({
+            where: { id: requestingUserId },
+            select: {
+              schoolId: true,
+              role: true,
+              following: { select: { id: true } },
+            },
+          })
+        : Promise.resolve(null),
+    ]);
 
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
 
@@ -175,29 +189,20 @@ export class EventsService {
 
     // Friends attending — only if caller is authenticated
     let friendsAttending: any[] = [];
-    if (requestingUserId) {
-      const user = await this.prisma.user.findUnique({
-        where: { id: requestingUserId },
-        select: {
-          schoolId: true,
-          role: true,
-          following: { select: { id: true } },
-        },
-      });
-
+    if (requestingUserId && requestingUser) {
       // Access control: INTERNAL events are only visible to same-school students
       if (
         event.eventType === 'INTERNAL' &&
-        user?.role === 'STUDENT' &&
-        user.schoolId !== event.schoolId
+        requestingUser.role === 'STUDENT' &&
+        requestingUser.schoolId !== event.schoolId
       ) {
         throw new ForbiddenException(
           'This event is not available for your school',
         );
       }
 
-      if (user) {
-        const followingIds = user.following.map((f) => f.id);
+      const followingIds = requestingUser.following.map((f) => f.id);
+      if (followingIds.length > 0) {
         const friendTickets = await this.prisma.ticket.findMany({
           where: { eventId: id, userId: { in: followingIds } },
           include: {

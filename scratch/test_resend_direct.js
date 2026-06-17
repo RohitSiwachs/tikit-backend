@@ -21,8 +21,8 @@ async function sendTestEmail() {
 
   try {
     const result = await resend.emails.send({
-      from: 'TiKit <onboarding@resend.dev>',
-      to: 'rohitsiwachs1999@gmail.com',
+      from: 'TiKit <onboarding@tikit.se>',
+      to: 'gouravbishnoi429@gmail.com',
       subject: 'You received a new card: Premium Student Pass 💳',
       html,
     });
