@@ -97,6 +97,13 @@ export class CardsController {
     return this.cardsService.getActivatedStudents(id);
   }
 
+  @Get(':id/assigned-users')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'View all users assigned this card (activated or pending)' })
+  getAssignedUsers(@Param('id') id: string) {
+    return this.cardsService.getAssignedUsers(id);
+  }
+
   @Post('claim')
   @Roles(Role.STUDENT, Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({

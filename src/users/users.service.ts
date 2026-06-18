@@ -24,6 +24,9 @@ const SAFE_USER_SELECT = {
   schoolId: true,
   createdAt: true,
 } as const;
+
+// Picks only the cardId from each CardCode row so callers can build assignedCardIds
+const CARD_CODES_ID_SELECT = { cardCodes: { select: { cardId: true } } } as const;
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 
@@ -72,7 +75,7 @@ export class UsersService {
       }
     }
 
-    const [total, data] = await Promise.all([
+    const [total, rawData] = await Promise.all([
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
@@ -81,9 +84,15 @@ export class UsersService {
         select: {
           ...SAFE_USER_SELECT,
           school: { select: { name: true } },
+          ...CARD_CODES_ID_SELECT,
         },
       }),
     ]);
+
+    const data = rawData.map(({ cardCodes, ...user }) => ({
+      ...user,
+      assignedCardIds: [...new Set(cardCodes.map((c) => c.cardId))],
+    }));
 
     return {
       data,
@@ -135,10 +144,15 @@ export class UsersService {
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { ...SAFE_USER_SELECT, school: { select: { name: true } } },
+      select: {
+        ...SAFE_USER_SELECT,
+        school: { select: { name: true } },
+        ...CARD_CODES_ID_SELECT,
+      },
     });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
-    return user;
+    const { cardCodes, ...rest } = user;
+    return { ...rest, assignedCardIds: [...new Set(cardCodes.map((c) => c.cardId))] };
   }
 
   async getFullDetails(id: string) {
@@ -410,7 +424,7 @@ export class UsersService {
   async assignCards(cardId: string, userIds: string[]) {
     const card = await this.prisma.card.findUnique({
       where: { id: cardId },
-      select: { schoolId: true },
+      select: { schoolId: true, codeGenerationType: true },
     });
 
     if (!card) throw new NotFoundException('Card not found');
@@ -424,18 +438,118 @@ export class UsersService {
       throw new BadRequestException('One or more users not found');
     }
 
-    const invalidUsers = users.filter((u) => !u.schoolId || u.schoolId !== card.schoolId);
+    const invalidUsers = users.filter(
+      (u) => !u.schoolId || u.schoolId !== card.schoolId,
+    );
     if (invalidUsers.length > 0) {
       throw new BadRequestException(
         `Cannot assign card. ${invalidUsers.length} user(s) do not belong to the card's school.`,
       );
     }
 
-    const codesToCreate = userIds.map((userId) => ({
+    const now = new Date();
+
+    if (card.codeGenerationType === 'batch') {
+      // ── Pre-flight ──────────────────────────────────────────────────────────
+      // Determine net demand (excluding users already assigned) and compare it
+      // against the current pool size BEFORE opening a transaction.  This way:
+      //  • we can report exact counts in the error message
+      //  • no writes ever happen when the pool is too small (nothing to roll back)
+      const [availableCount, existingAssignments] = await Promise.all([
+        this.prisma.cardCode.count({
+          where: { cardId, userId: null, isUsed: false },
+        }),
+        this.prisma.cardCode.findMany({
+          where: { cardId, userId: { in: userIds } },
+          select: { userId: true },
+        }),
+      ]);
+
+      const alreadyAssignedSet = new Set(
+        existingAssignments.map((c) => c.userId as string),
+      );
+      const toAssign = userIds.filter((id) => !alreadyAssignedSet.has(id));
+      const netRequired = toAssign.length;
+
+      if (netRequired === 0) {
+        return {
+          message: 'All selected users already have this card assigned.',
+          assigned: 0,
+          skipped: userIds.length,
+        };
+      }
+
+      if (availableCount < netRequired) {
+        throw new BadRequestException({
+          message: `Card assignment failed. Requested ${netRequired} assignment(s) but only ${availableCount} unused code(s) are available.`,
+          availableCodes: availableCount,
+          requestedAssignments: netRequired,
+        });
+      }
+
+      // ── Transaction ─────────────────────────────────────────────────────────
+      // We know the pool is large enough, so enter the transaction.
+      // All UPDATE statements execute on the same DB connection; if anything
+      // throws, Prisma issues ROLLBACK and re-throws — 0 codes are consumed.
+      // The inner `!available` guard is a race-condition backstop: a concurrent
+      // request could deplete the pool between the count above and this point.
+      return this.prisma.$transaction(async (tx) => {
+        let assigned = 0;
+
+        for (const userId of toAssign) {
+          const available = await tx.cardCode.findFirst({
+            where: { cardId, userId: null, isUsed: false },
+            select: { id: true },
+          });
+
+          if (!available) {
+            // Pool was depleted by a concurrent request after our pre-flight
+            // count.  Throw → Prisma issues ROLLBACK → 0 codes consumed.
+            throw new BadRequestException({
+              message: `Card assignment failed due to a concurrent conflict. The code pool was exhausted mid-assignment. Please retry.`,
+              availableCodes: 0,
+              requestedAssignments: netRequired,
+            });
+          }
+
+          await tx.cardCode.update({
+            where: { id: available.id },
+            data: { userId, assignedAt: now },
+          });
+
+          assigned++;
+        }
+
+        return {
+          message: `Card assigned to ${assigned} student(s). ${alreadyAssignedSet.size} already had this card.`,
+          assigned,
+          skipped: alreadyAssignedSet.size,
+        };
+      });
+    }
+
+    // Individual mode: generate a fresh code per user and bulk-insert.
+    const alreadyAssigned = await this.prisma.cardCode.findMany({
+      where: { cardId, userId: { in: userIds } },
+      select: { userId: true },
+    });
+    const alreadyAssignedIds = new Set(alreadyAssigned.map((c) => c.userId));
+    const toAssign = userIds.filter((id) => !alreadyAssignedIds.has(id));
+
+    if (toAssign.length === 0) {
+      return {
+        message: 'All selected users already have this card assigned.',
+        assigned: 0,
+        skipped: userIds.length,
+      };
+    }
+
+    const codesToCreate = toAssign.map((userId) => ({
       cardId,
       userId,
       code: crypto.randomBytes(4).toString('hex').toUpperCase(),
       isUsed: false,
+      assignedAt: now,
     }));
 
     await this.prisma.cardCode.createMany({
@@ -444,7 +558,9 @@ export class UsersService {
     });
 
     return {
-      message: `Assigned card ${cardId} to ${userIds.length} students.`,
+      message: `Card assigned to ${toAssign.length} student(s). ${alreadyAssignedIds.size} already had this card.`,
+      assigned: toAssign.length,
+      skipped: alreadyAssignedIds.size,
     };
   }
 

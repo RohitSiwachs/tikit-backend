@@ -335,18 +335,21 @@ model PostComment {
 }
 
 model CardCode {
-  id        String    @id @default(uuid())
-  cardId    String
-  card      Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  code      String    @unique
-  isUsed    Boolean   @default(false)
-  userId    String?
-  user      User?     @relation(fields: [userId], references: [id])
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  id         String    @id @default(uuid())
+  cardId     String
+  card       Card      @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  code       String    @unique
+  isUsed     Boolean   @default(false)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+  assignedAt DateTime?
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
 
   @@index([cardId])
   @@index([userId])
+  @@index([cardId, userId])
+  @@index([cardId, isUsed])
 }
 
 model Class {

@@ -90,6 +90,43 @@ export class CardsService {
     }));
   }
 
+  async getAssignedUsers(cardId: string) {
+    const card = await this.prisma.card.findUnique({ where: { id: cardId }, select: { id: true } });
+    if (!card) throw new NotFoundException(`Card with ID ${cardId} not found`);
+
+    const codes = await this.prisma.cardCode.findMany({
+      where: { cardId, userId: { not: null } },
+      select: {
+        code: true,
+        assignedAt: true,
+        isUsed: true,
+        usedAt: true,
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            avatarUrl: true,
+            className: true,
+          },
+        },
+      },
+      orderBy: { assignedAt: 'desc' },
+    });
+
+    return codes.map((c) => ({
+      id: c.user!.id,
+      displayName: c.user!.displayName,
+      email: c.user!.email,
+      avatarUrl: c.user?.avatarUrl ?? null,
+      className: c.user?.className ?? null,
+      assignedCode: c.code,
+      assignedAt: c.assignedAt,
+      activated: c.isUsed,
+      activatedAt: c.usedAt ?? null,
+    }));
+  }
+
   async findAll(schoolId?: string) {
     return this.prisma.card.findMany({
       where: schoolId ? { schoolId } : {},
