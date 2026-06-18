@@ -5,7 +5,6 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   generateQrToken,
@@ -17,10 +16,15 @@ import {
   CreateTicketTypeDto,
   UpdateTicketTypeDto,
 } from './dto/create-event.dto';
+import { CacheService } from '../cache/cache.service';
+import { CK, TTL } from '../cache/cache-keys';
 
 @Injectable()
 export class EventsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async create(dto: CreateEventDto, requestingSchoolId?: string | null) {
     // Non-admin users can only create events for their own school
@@ -53,7 +57,7 @@ export class EventsService {
         : { ...tt, price: tt.price ?? 0 },
     );
 
-    return this.prisma.event.create({
+    const event = await this.prisma.event.create({
       data: {
         ...eventData,
         startsAt: new Date(eventData.startsAt),
@@ -75,6 +79,11 @@ export class EventsService {
         connectedSchools: true,
       },
     });
+
+    // Invalidate all event list caches — new event changes every list variant
+    await this.cache.delByPattern('events:list:*');
+
+    return event;
   }
 
   async findAll(query: {
@@ -84,6 +93,10 @@ export class EventsService {
     limit?: number;
     requestingUser?: { schoolId?: string; role?: string };
   }) {
+    const cacheKey = CK.eventsList(query);
+    const cached = await this.cache.get<any>(cacheKey);
+    if (cached) return cached;
+
     const {
       schoolId,
       isPublished,
@@ -130,7 +143,7 @@ export class EventsService {
       }),
     ]);
 
-    return {
+    const result = {
       data,
       meta: {
         total,
@@ -139,56 +152,71 @@ export class EventsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.cache.set(cacheKey, result, TTL.EVENTS_LIST);
+    return result;
   }
 
   async findOne(id: string, requestingUserId?: string) {
-    // Fire event and requesting-user lookups in parallel — they are independent.
-    // Before: event RTT + user RTT (sequential). After: max(event RTT, user RTT).
-    const [event, requestingUser] = await Promise.all([
-      this.prisma.event.findUnique({
-        where: { id },
-        include: {
-          school: { select: { id: true, name: true, logoUrl: true } },
-          ticketTypes: true,
-          _count: {
-            select: { tickets: true, likes: true, comments: true },
-          },
-          likes: requestingUserId
-            ? { where: { userId: requestingUserId } }
-            : false,
-          tickets: requestingUserId
-            ? {
-                where: { userId: requestingUserId },
-                select: { id: true, status: true },
-              }
-            : false,
-        },
-      }),
-      requestingUserId
-        ? this.prisma.user.findUnique({
-            where: { id: requestingUserId },
-            select: {
-              schoolId: true,
-              role: true,
-              following: { select: { id: true } },
-            },
-          })
-        : Promise.resolve(null),
-    ]);
+    // Fetch the base event (school + ticketTypes + aggregate counts) from cache.
+    // User-specific fields (hasLiked, userTicket, friendsAttending) are always
+    // resolved fresh — they are cheap indexed lookups.
+    const cachedEvent = await this.cache.get<any>(CK.eventBase(id));
 
+    // Fan out ALL queries in parallel in a single DB round-trip.
+    // When the event is cached we skip its query entirely.
+    const [freshEvent, requestingUser, likeRecord, ticketRecord] =
+      await Promise.all([
+        // Base event — skipped on cache hit
+        cachedEvent
+          ? Promise.resolve(null)
+          : this.prisma.event.findUnique({
+              where: { id },
+              include: {
+                school: { select: { id: true, name: true, logoUrl: true } },
+                ticketTypes: true,
+                _count: {
+                  select: { tickets: true, likes: true, comments: true },
+                },
+              },
+            }),
+
+        // Requesting user's school/role + following list (for friendsAttending)
+        requestingUserId
+          ? this.prisma.user.findUnique({
+              where: { id: requestingUserId },
+              select: {
+                schoolId: true,
+                role: true,
+                following: { select: { id: true } },
+              },
+            })
+          : Promise.resolve(null),
+
+        // Did this user like the event?
+        requestingUserId
+          ? this.prisma.eventLike.findFirst({
+              where: { eventId: id, userId: requestingUserId },
+            })
+          : Promise.resolve(null),
+
+        // Does this user hold a ticket?
+        requestingUserId
+          ? this.prisma.ticket.findFirst({
+              where: { eventId: id, userId: requestingUserId },
+              select: { id: true, status: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+    const event = cachedEvent ?? freshEvent;
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
 
-    const totalCapacity = event.ticketTypes.reduce(
-      (acc, tt) => acc + tt.quantityTotal,
-      0,
-    );
-    const soldTickets = event.ticketTypes.reduce(
-      (acc, tt) => acc + (tt.quantityTotal - tt.quantityRemaining),
-      0,
-    );
+    // Populate cache on miss
+    if (!cachedEvent && freshEvent) {
+      await this.cache.set(CK.eventBase(id), freshEvent, TTL.EVENT_BASE);
+    }
 
-    // Friends attending — only if caller is authenticated
-    let friendsAttending: any[] = [];
     if (requestingUserId && requestingUser) {
       // Access control: INTERNAL events are only visible to same-school students
       if (
@@ -200,8 +228,12 @@ export class EventsService {
           'This event is not available for your school',
         );
       }
+    }
 
-      const followingIds = requestingUser.following.map((f) => f.id);
+    // Friends attending — only if caller is authenticated and follows someone
+    let friendsAttending: any[] = [];
+    if (requestingUserId && requestingUser) {
+      const followingIds = requestingUser.following.map((f: any) => f.id);
       if (followingIds.length > 0) {
         const friendTickets = await this.prisma.ticket.findMany({
           where: { eventId: id, userId: { in: followingIds } },
@@ -213,7 +245,16 @@ export class EventsService {
       }
     }
 
-    const { _count, likes, tickets, ...rest } = event as any;
+    const totalCapacity = event.ticketTypes.reduce(
+      (acc: number, tt: any) => acc + tt.quantityTotal,
+      0,
+    );
+    const soldTickets = event.ticketTypes.reduce(
+      (acc: number, tt: any) => acc + (tt.quantityTotal - tt.quantityRemaining),
+      0,
+    );
+
+    const { _count, ...rest } = event as any;
 
     return {
       ...rest,
@@ -224,8 +265,8 @@ export class EventsService {
         likes: _count.likes,
         comments: _count.comments,
       },
-      hasLiked: likes ? likes.length > 0 : null,
-      userTicket: tickets?.[0] ?? null,
+      hasLiked: requestingUserId ? !!likeRecord : null,
+      userTicket: ticketRecord ?? null,
       friendsAttending,
     };
   }
@@ -270,13 +311,16 @@ export class EventsService {
       };
     }
 
-    return this.prisma.event.update({
+    const event = await this.prisma.event.update({
       where: { id },
       data,
       include: {
         connectedSchools: true,
       },
     });
+
+    await this.invalidateEventCaches(id);
+    return event;
   }
 
   async getAttendees(
@@ -366,9 +410,9 @@ export class EventsService {
     if (!event) {
       throw new NotFoundException(`Event with ID ${id} not found`);
     }
-    return this.prisma.event.delete({
-      where: { id },
-    });
+    const result = await this.prisma.event.delete({ where: { id } });
+    await this.invalidateEventCaches(id);
+    return result;
   }
 
   async duplicateEvent(id: string) {
@@ -392,7 +436,7 @@ export class EventsService {
       ...eventData
     } = eventToDuplicate;
 
-    return this.prisma.event.create({
+    const event = await this.prisma.event.create({
       data: {
         ...eventData,
         title: `${eventData.title} (Copy)`,
@@ -426,6 +470,9 @@ export class EventsService {
         connectedSchools: true,
       },
     });
+
+    await this.cache.delByPattern('events:list:*');
+    return event;
   }
 
   async pinEvent(id: string) {
@@ -444,17 +491,16 @@ export class EventsService {
       throw new BadRequestException('Cannot publish a cancelled event');
 
     // If event has a future scheduledAt, set status to 'scheduled' instead of immediate publish
-    if (event.scheduledAt && new Date(event.scheduledAt) > new Date()) {
-      return this.prisma.event.update({
-        where: { id },
-        data: { status: 'scheduled' },
-      });
-    }
-
-    return this.prisma.event.update({
+    const result = await this.prisma.event.update({
       where: { id },
-      data: { isPublished: true, status: 'published', scheduledAt: null },
+      data:
+        event.scheduledAt && new Date(event.scheduledAt) > new Date()
+          ? { status: 'scheduled' }
+          : { isPublished: true, status: 'published', scheduledAt: null },
     });
+
+    await this.invalidateEventCaches(id);
+    return result;
   }
 
   async unpublishEvent(id: string) {
@@ -467,10 +513,12 @@ export class EventsService {
     if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
     if (event.isCancelled)
       throw new BadRequestException('Event is already cancelled');
-    return this.prisma.event.update({
+    const result = await this.prisma.event.update({
       where: { id },
       data: { isCancelled: true, isPublished: false, status: 'cancelled' },
     });
+    await this.invalidateEventCaches(id);
+    return result;
   }
 
   private async assertSchoolOwnership(
@@ -487,6 +535,14 @@ export class EventsService {
         'You can only manage events belonging to your school',
       );
     }
+  }
+
+  /** Invalidate the base event cache entry + every list cache. */
+  private async invalidateEventCaches(id: string) {
+    await Promise.all([
+      this.cache.del(CK.eventBase(id)),
+      this.cache.delByPattern('events:list:*'),
+    ]);
   }
 
   async createTicketType(
@@ -508,13 +564,17 @@ export class EventsService {
         ? { ...dto, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
         : { ...dto, price: dto.price ?? 0 };
 
-    return this.prisma.ticketType.create({
+    const ticketType = await this.prisma.ticketType.create({
       data: {
         ...data,
         eventId,
         quantityRemaining: dto.quantityTotal,
       },
     });
+
+    // TicketType changes affect event detail (capacity stats)
+    await this.invalidateEventCaches(eventId);
+    return ticketType;
   }
 
   async updateTicketType(
@@ -535,10 +595,13 @@ export class EventsService {
         ? { ...dto, freeForHostSchool: true }
         : dto;
 
-    return this.prisma.ticketType.update({
+    const result = await this.prisma.ticketType.update({
       where: { id: ticketTypeId },
       data,
     });
+
+    if (tt) await this.invalidateEventCaches(tt.eventId);
+    return result;
   }
 
   async removeTicketType(
@@ -547,9 +610,11 @@ export class EventsService {
     requestingSchoolId?: string | null,
   ) {
     await this.assertSchoolOwnership(eventId, requestingSchoolId ?? null);
-    return this.prisma.ticketType.delete({
+    const result = await this.prisma.ticketType.delete({
       where: { id: ticketTypeId },
     });
+    await this.invalidateEventCaches(eventId);
+    return result;
   }
 
   async markTicketTypeSoldOut(
@@ -565,10 +630,13 @@ export class EventsService {
     if (!tt || tt.eventId !== eventId)
       throw new NotFoundException('Ticket type not found for this event');
 
-    return this.prisma.ticketType.update({
+    const result = await this.prisma.ticketType.update({
       where: { id: ticketTypeId },
       data: { isSoldOut },
     });
+
+    await this.invalidateEventCaches(eventId);
+    return result;
   }
 
   // --- EVENT DETAIL FLOW ---
@@ -588,10 +656,13 @@ export class EventsService {
       await this.prisma.eventLike.delete({
         where: { eventId_userId: { eventId, userId } },
       });
+      // Invalidate base event so _count.likes is refreshed on next fetch
+      await this.cache.del(CK.eventBase(eventId));
       return { message: 'Unliked', liked: false };
     }
 
     await this.prisma.eventLike.create({ data: { eventId, userId } });
+    await this.cache.del(CK.eventBase(eventId));
     return { message: 'Liked', liked: true };
   }
 
@@ -602,12 +673,16 @@ export class EventsService {
     if (!event)
       throw new NotFoundException(`Event with ID ${eventId} not found`);
 
-    return this.prisma.eventComment.create({
+    const comment = await this.prisma.eventComment.create({
       data: { eventId, userId, body },
       include: {
         user: { select: { id: true, displayName: true, avatarUrl: true } },
       },
     });
+
+    // Invalidate base event so _count.comments is refreshed on next fetch
+    await this.cache.del(CK.eventBase(eventId));
+    return comment;
   }
 
   async getComments(eventId: string) {
@@ -646,6 +721,8 @@ export class EventsService {
       });
     });
 
+    // Ticket count changed — invalidate event base cache
+    await this.cache.del(CK.eventBase(eventId));
     return { message: 'RSVP cancelled and capacity restored' };
   }
 
@@ -730,6 +807,8 @@ export class EventsService {
       });
     });
 
+    // Inventory changed — invalidate event base cache
+    await this.cache.del(CK.eventBase(eventId));
     return { message: 'Ticket issued and saved to Wallet', ticket };
   }
 
@@ -817,6 +896,8 @@ export class EventsService {
           },
         },
       });
+      // Invalidate event base cache since connectedSchools changed
+      await this.invalidateEventCaches(request.eventId);
     } else if (status === 'rejected') {
       // If they were previously connected, we might want to disconnect them, but here we just update request status
       // We could add disconnect logic if needed.

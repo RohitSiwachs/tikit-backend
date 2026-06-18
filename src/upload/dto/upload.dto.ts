@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsIn } from 'class-validator';
+
+export const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+
+export type AllowedMimeType = (typeof ALLOWED_MIME_TYPES)[number];
 
 export class GetPresignedUrlDto {
   @ApiProperty({
@@ -8,9 +16,15 @@ export class GetPresignedUrlDto {
   @IsString()
   filename: string;
 
-  @ApiProperty({ description: 'The MIME type of the file (e.g. image/jpeg)' })
-  @IsString()
-  content_type: string;
+  @ApiProperty({
+    description: 'MIME type of the file to upload',
+    enum: ALLOWED_MIME_TYPES,
+    example: 'image/jpeg',
+  })
+  @IsIn(ALLOWED_MIME_TYPES, {
+    message: `content_type must be one of: ${ALLOWED_MIME_TYPES.join(', ')}`,
+  })
+  content_type: AllowedMimeType;
 
   @ApiProperty({
     required: false,

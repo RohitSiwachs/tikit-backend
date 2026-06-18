@@ -7,6 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePostDto, UpdatePostDto } from './dto/post.dto';
 import { PostType } from '../common';
+import { CacheService } from '../cache/cache.service';
+import { CK, TTL } from '../cache/cache-keys';
 
 const POST_AUTHOR_SELECT = {
   id: true,
@@ -69,7 +71,10 @@ function formatPost(post: any, userId?: string) {
 
 @Injectable()
 export class PostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async create(createPostDto: CreatePostDto, authorId: string) {
     // Validate scheduledAt if provided
@@ -120,6 +125,7 @@ export class PostsService {
         },
       });
 
+      await this.invalidatePostListCaches();
       return formatPost(post, authorId);
     }
 
@@ -129,105 +135,155 @@ export class PostsService {
       include: { author: { select: POST_AUTHOR_SELECT } },
     });
 
+    await this.invalidatePostListCaches();
     return formatPost(post);
   }
 
   async getFeed(userId: string, page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
+    const cacheKey = CK.feedBase(page, limit);
 
-    const where: any = {
-      deletedAt: null,
-      // Exclude posts scheduled for the future
-      OR: [
-        { scheduledAt: null },
-        { scheduledAt: { lte: new Date() } },
-      ],
-    };
+    // Cache stores raw posts WITHOUT user-specific pollVotes.
+    // All users see the same posts — only the voted option differs per user.
+    type RawFeed = { total: number; posts: any[] };
+    let raw = await this.cache.get<RawFeed>(cacheKey);
 
-    const [total, posts] = await Promise.all([
-      this.prisma.post.count({ where }),
-      this.prisma.post.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          author: { select: POST_AUTHOR_SELECT },
-          _count: { select: { likes: true, comments: true } },
-          pollOptions: {
-            include: {
-              _count: { select: { votes: true } },
-            },
+    if (!raw) {
+      const skip = (page - 1) * limit;
+      const where: any = {
+        deletedAt: null,
+        OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
+      };
+      const [total, posts] = await Promise.all([
+        this.prisma.post.count({ where }),
+        this.prisma.post.findMany({
+          where,
+          skip,
+          take: limit,
+          include: {
+            author: { select: POST_AUTHOR_SELECT },
+            _count: { select: { likes: true, comments: true } },
+            pollOptions: { include: { _count: { select: { votes: true } } } },
+            // pollVotes intentionally omitted — overlaid per-user below
           },
-          pollVotes: {
-            where: { userId },
-            select: { optionId: true },
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+      raw = { total, posts };
+      await this.cache.set(cacheKey, raw, TTL.FEED_BASE);
+    }
+
+    // Overlay the requesting user's poll votes in one indexed query
+    const allOptionIds = raw.posts.flatMap(
+      (p) => p.pollOptions?.map((o: any) => o.id) ?? [],
+    );
+    const voteByPostId: Record<string, string> = {};
+    if (allOptionIds.length > 0) {
+      const votes = await this.prisma.pollVote.findMany({
+        where: { userId, optionId: { in: allOptionIds } },
+        select: { optionId: true },
+      });
+      const optionToPostId: Record<string, string> = {};
+      raw.posts.forEach((p) =>
+        p.pollOptions?.forEach((o: any) => { optionToPostId[o.id] = p.id; }),
+      );
+      votes.forEach((v) => { voteByPostId[optionToPostId[v.optionId]] = v.optionId; });
+    }
+
+    const postsWithVotes = raw.posts.map((p) => ({
+      ...p,
+      pollVotes: voteByPostId[p.id] ? [{ optionId: voteByPostId[p.id] }] : [],
+    }));
 
     return {
-      data: posts.map((post) => formatPost(post, userId)),
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      data: postsWithVotes.map((post) => formatPost(post, userId)),
+      meta: { total: raw.total, page, limit, totalPages: Math.ceil(raw.total / limit) },
     };
   }
 
   async findAll(schoolId?: string, type?: string, userId?: string) {
-    const where: any = {
-      // Exclude posts scheduled for the future
-      OR: [
-        { scheduledAt: null },
-        { scheduledAt: { lte: new Date() } },
-      ],
-    };
-    if (schoolId) where.schoolId = schoolId;
-    if (type) where.postType = type;
+    const cacheKey = CK.postsList({ schoolId, type });
+    type RawList = { posts: any[] };
+    let raw = await this.cache.get<RawList>(cacheKey);
 
-    const posts = await this.prisma.post.findMany({
-      where,
-      include: {
-        author: { select: POST_AUTHOR_SELECT },
-        _count: { select: { likes: true, comments: true } },
-        pollOptions: {
-          include: {
-            _count: { select: { votes: true } },
-          },
+    if (!raw) {
+      const where: any = {
+        OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
+      };
+      if (schoolId) where.schoolId = schoolId;
+      if (type) where.postType = type;
+
+      const posts = await this.prisma.post.findMany({
+        where,
+        include: {
+          author: { select: POST_AUTHOR_SELECT },
+          _count: { select: { likes: true, comments: true } },
+          pollOptions: { include: { _count: { select: { votes: true } } } },
+          // pollVotes intentionally omitted — overlaid per-user below
         },
-        pollVotes: userId
-          ? {
-              where: { userId },
-              select: { optionId: true },
-            }
-          : false,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
+      raw = { posts };
+      await this.cache.set(cacheKey, raw, TTL.POSTS_LIST);
+    }
 
-    return posts.map((post) => formatPost(post, userId));
+    if (!userId) return raw.posts.map((post) => formatPost(post));
+
+    // Overlay user's poll votes
+    const allOptionIds = raw.posts.flatMap(
+      (p) => p.pollOptions?.map((o: any) => o.id) ?? [],
+    );
+    const voteByPostId: Record<string, string> = {};
+    if (allOptionIds.length > 0) {
+      const votes = await this.prisma.pollVote.findMany({
+        where: { userId, optionId: { in: allOptionIds } },
+        select: { optionId: true },
+      });
+      const optionToPostId: Record<string, string> = {};
+      raw.posts.forEach((p) =>
+        p.pollOptions?.forEach((o: any) => { optionToPostId[o.id] = p.id; }),
+      );
+      votes.forEach((v) => { voteByPostId[optionToPostId[v.optionId]] = v.optionId; });
+    }
+
+    return raw.posts
+      .map((p) => ({
+        ...p,
+        pollVotes: voteByPostId[p.id] ? [{ optionId: voteByPostId[p.id] }] : [],
+      }))
+      .map((post) => formatPost(post, userId));
   }
 
   async findOne(id: string, userId?: string) {
-    const post = await this.prisma.post.findUnique({
-      where: { id },
-      include: {
-        author: { select: POST_AUTHOR_SELECT },
-        _count: { select: { likes: true, comments: true } },
-        pollOptions: {
-          include: {
-            _count: { select: { votes: true } },
-          },
+    let rawPost = await this.cache.get<any>(CK.postBase(id));
+
+    if (!rawPost) {
+      rawPost = await this.prisma.post.findUnique({
+        where: { id },
+        include: {
+          author: { select: POST_AUTHOR_SELECT },
+          _count: { select: { likes: true, comments: true } },
+          pollOptions: { include: { _count: { select: { votes: true } } } },
+          // pollVotes intentionally omitted — overlaid per-user below
         },
-        pollVotes: userId
-          ? {
-              where: { userId },
-              select: { optionId: true },
-            }
-          : false,
-      },
-    });
-    if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
-    return formatPost(post, userId);
+      });
+      if (!rawPost) throw new NotFoundException(`Post with ID ${id} not found`);
+      await this.cache.set(CK.postBase(id), rawPost, TTL.POST_BASE);
+    }
+
+    if (!userId) return formatPost(rawPost);
+
+    // Overlay the requesting user's vote for this post
+    const optionIds = rawPost.pollOptions?.map((o: any) => o.id) ?? [];
+    let pollVotes: { optionId: string }[] = [];
+    if (optionIds.length > 0) {
+      const vote = await this.prisma.pollVote.findFirst({
+        where: { userId, optionId: { in: optionIds } },
+        select: { optionId: true },
+      });
+      if (vote) pollVotes = [{ optionId: vote.optionId }];
+    }
+
+    return formatPost({ ...rawPost, pollVotes }, userId);
   }
 
   async update(
@@ -261,6 +317,7 @@ export class PostsService {
       },
     });
 
+    await this.invalidatePostCaches(id);
     return formatPost(updatedPost, requestingUserId);
   }
 
@@ -271,7 +328,9 @@ export class PostsService {
       throw new ForbiddenException('You can only delete your own posts');
     }
 
-    return this.prisma.post.delete({ where: { id } });
+    const result = await this.prisma.post.delete({ where: { id } });
+    await this.invalidatePostCaches(id);
+    return result;
   }
 
   async toggleLike(postId: string, userId: string) {
@@ -286,10 +345,13 @@ export class PostsService {
       await this.prisma.postLike.delete({
         where: { postId_userId: { postId, userId } },
       });
+      // Bust single-post cache so _count.likes is fresh on next fetch
+      await this.cache.del(CK.postBase(postId));
       return { liked: false };
     }
 
     await this.prisma.postLike.create({ data: { postId, userId } });
+    await this.cache.del(CK.postBase(postId));
     return { liked: true };
   }
 
@@ -297,10 +359,13 @@ export class PostsService {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException(`Post with ID ${postId} not found`);
 
-    return this.prisma.postComment.create({
+    const comment = await this.prisma.postComment.create({
       data: { postId, authorId: userId, body },
       include: { author: { select: POST_AUTHOR_SELECT } },
     });
+    // Bust single-post cache so _count.comments is fresh on next fetch
+    await this.cache.del(CK.postBase(postId));
+    return comment;
   }
 
   async getComments(postId: string) {
@@ -370,6 +435,27 @@ export class PostsService {
       },
     });
 
+    // Vote changes poll counts — invalidate base post and all list/feed caches
+    await this.invalidatePostCaches(postId);
     return this.findOne(postId, userId);
+  }
+
+  // ─── Cache helpers ────────────────────────────────────────────────────────
+
+  /** Bust only the list/feed caches (used on post creation). */
+  private async invalidatePostListCaches() {
+    await Promise.all([
+      this.cache.delByPattern('feed:base:*'),
+      this.cache.delByPattern('posts:list:*'),
+    ]);
+  }
+
+  /** Bust the single-post cache plus all list/feed caches (used on edit/delete/vote). */
+  private async invalidatePostCaches(id: string) {
+    await Promise.all([
+      this.cache.del(CK.postBase(id)),
+      this.cache.delByPattern('feed:base:*'),
+      this.cache.delByPattern('posts:list:*'),
+    ]);
   }
 }

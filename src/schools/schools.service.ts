@@ -11,12 +11,15 @@ import { UpdateSchoolDto } from './dto/update-school.dto';
 import { BulkCreateSchoolItemDto } from './dto/bulk-create-school.dto';
 import { GenerateIndividualCodesDto } from './dto/invite-code.dto';
 import { EmailsService } from '../emails/emails.service';
+import { CacheService } from '../cache/cache.service';
+import { CK, TTL } from '../cache/cache-keys';
 
 @Injectable()
 export class SchoolsService {
   constructor(
     private prisma: PrismaService,
     private emailsService: EmailsService,
+    private cache: CacheService,
   ) {}
 
   async create(createSchoolDto: CreateSchoolDto) {
@@ -33,8 +36,8 @@ export class SchoolsService {
       process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
     const deepLink = `${baseUrl}/v1/join/${schoolData.schoolCode}`;
 
-    return this.prisma.$transaction(async (tx) => {
-      const school = await tx.school.create({
+    const school = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.school.create({
         data: {
           ...schoolData,
           deepLink,
@@ -54,7 +57,7 @@ export class SchoolsService {
           password: hashedPassword,
           role: 'KARORDFORANDE',
           accountStatus: 'ACTIVE',
-          schoolId: school.id,
+          schoolId: created.id,
           isVerified: true,
           approvalStatus: 'approved',
         },
@@ -63,15 +66,18 @@ export class SchoolsService {
       // Default communication quota — 500 per channel for every new school
       await tx.communicationAllocation.create({
         data: {
-          schoolId: school.id,
+          schoolId: created.id,
           pushAllocated: 500,
           emailAllocated: 500,
           smsAllocated: 500,
         },
       });
 
-      return school;
+      return created;
     });
+
+    await this.cache.delByPattern('schools:list:*');
+    return school;
   }
 
   async findAll(query: {
@@ -80,6 +86,10 @@ export class SchoolsService {
     page?: number;
     limit?: number;
   }) {
+    const cacheKey = CK.schoolsList(query);
+    const cached = await this.cache.get<any>(cacheKey);
+    if (cached) return cached;
+
     const { search, city, page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
@@ -108,7 +118,7 @@ export class SchoolsService {
       }),
     ]);
 
-    return {
+    const result = {
       data,
       meta: {
         total,
@@ -117,9 +127,15 @@ export class SchoolsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.cache.set(cacheKey, result, TTL.SCHOOLS_LIST);
+    return result;
   }
 
   async findOne(id: string) {
+    const cached = await this.cache.get<any>(CK.school(id));
+    if (cached) return cached;
+
     const school = await this.prisma.school.findUnique({
       where: { id },
       include: {
@@ -133,6 +149,7 @@ export class SchoolsService {
       throw new NotFoundException(`School with ID ${id} not found`);
     }
 
+    await this.cache.set(CK.school(id), school, TTL.SCHOOL);
     return school;
   }
 
@@ -148,6 +165,11 @@ export class SchoolsService {
       where: { id },
       data: schoolData,
     });
+
+    await Promise.all([
+      this.cache.del(CK.school(id)),
+      this.cache.delByPattern('schools:list:*'),
+    ]);
 
     // Communication limits are TIKIT_ADMIN-only — silently ignored for other roles
     if (callerRole === 'TIKIT_ADMIN') {
@@ -172,9 +194,12 @@ export class SchoolsService {
   }
 
   async remove(id: string) {
-    return this.prisma.school.delete({
-      where: { id },
-    });
+    const school = await this.prisma.school.delete({ where: { id } });
+    await Promise.all([
+      this.cache.del(CK.school(id)),
+      this.cache.delByPattern('schools:list:*'),
+    ]);
+    return school;
   }
 
   // ─── School Verification ─────────────────────────────────────────────────
@@ -202,10 +227,12 @@ export class SchoolsService {
       throw new BadRequestException('School is already verified');
     }
 
-    return this.prisma.school.update({
+    const result = await this.prisma.school.update({
       where: { id },
       data: { isVerified: true },
     });
+    await this.cache.del(CK.school(id));
+    return result;
   }
 
   async removeVerification(id: string) {
@@ -218,10 +245,12 @@ export class SchoolsService {
       throw new BadRequestException('School is not currently verified');
     }
 
-    return this.prisma.school.update({
+    const result = await this.prisma.school.update({
       where: { id },
       data: { isVerified: false },
     });
+    await this.cache.del(CK.school(id));
+    return result;
   }
 
   async uploadStudents(
@@ -402,6 +431,10 @@ export class SchoolsService {
         })),
         skipDuplicates: true,
       });
+    }
+
+    if (finalCreate.length > 0) {
+      await this.cache.delByPattern('schools:list:*');
     }
 
     return {

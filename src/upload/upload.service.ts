@@ -1,9 +1,14 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, Inject } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { ConfigType } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import s3Config from '../config/s3.config';
+import { ALLOWED_MIME_TYPES } from './dto/upload.dto';
+
+// Server-side Set for O(1) lookup — DTO @IsIn already rejects bad types at the
+// controller boundary; this guard is defence-in-depth for direct service calls.
+const ALLOWED_MIME_SET = new Set<string>(ALLOWED_MIME_TYPES);
 
 @Injectable()
 export class UploadService {
@@ -28,6 +33,12 @@ export class UploadService {
     content_type: string;
     folder?: string;
   }) {
+    if (!ALLOWED_MIME_SET.has(dto.content_type)) {
+      throw new BadRequestException(
+        `Unsupported content_type "${dto.content_type}". Allowed: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      );
+    }
+
     const key = `${dto.folder || 'uploads'}/${randomUUID()}-${dto.filename}`;
 
     const command = new PutObjectCommand({

@@ -23,7 +23,7 @@ export class AppController {
   @ApiOperation({ summary: 'Health check — verifies DB connectivity' })
   checkHealth() {
     return this.health.check([
-      () => this.prismaHealth.pingCheck('database', this.prisma),
+      () => this.prismaHealth.pingCheck('database', this.prisma, { timeout: 5000 }),
     ]);
   }
 

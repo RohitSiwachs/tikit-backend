@@ -1,18 +1,25 @@
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  // FIX #5: required() — no default fallback so a missing NODE_ENV is a startup failure,
+  // not a silent promotion to development mode (which would expose Swagger + open CORS).
   NODE_ENV: Joi.string()
     .valid('development', 'production', 'test')
-    .default('development'),
+    .required(),
   PORT: Joi.number().default(3000),
 
   // Database
   DATABASE_URL: Joi.string().required(),
+  // FIX #4: DIRECT_URL is needed by `prisma migrate deploy` and session-mode queries.
+  // Missing at startup is better than a cryptic migration failure at deploy time.
+  DIRECT_URL: Joi.string().required(),
 
   // JWT — RS256 asymmetric keys
   JWT_PRIVATE_KEY: Joi.string().required(),
   JWT_PUBLIC_KEY: Joi.string().required(),
-  JWT_EXPIRATION: Joi.string().default('15m'),
+  // FIX #3: renamed from JWT_EXPIRATION (dead variable) to JWT_ACCESS_EXPIRATION,
+  // which is the name actually read by src/config/jwt.config.ts.
+  JWT_ACCESS_EXPIRATION: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRATION_DAYS: Joi.number().default(30),
 
   // CORS — required in production; multiple origins comma-separated
@@ -52,7 +59,7 @@ export const envValidationSchema = Joi.object({
   // Resend Email (optional — falls back to console logger in dev)
   RESEND_API_KEY: Joi.string().optional().allow(''),
 
-  // Redis (required — BullMQ queue backend)
+  // Redis (required — BullMQ queue backend + rate limiter storage)
   REDIS_URL: Joi.string().required(),
 
   // Expo Push Notifications access token (optional — improves rate limits)

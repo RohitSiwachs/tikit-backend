@@ -4,6 +4,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { TerminusModule } from '@nestjs/terminus';
+import { ThrottlerRedisModule } from './common/throttler/throttler-redis.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { LoggerModule } from 'nestjs-pino';
 import { APP_GUARD } from '@nestjs/core';
 import { BullModule } from '@nestjs/bullmq';
@@ -46,6 +48,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { AdminPanelModule } from './admin-panel/admin-panel.module';
 import { NotificationTriggersModule } from './notification-triggers/notification-triggers.module';
 import { AppController } from './app.controller';
+import { CacheModule } from './cache/cache.module';
 
 @Module({
   imports: [
@@ -105,14 +108,25 @@ import { AppController } from './app.controller';
       },
     }),
 
-    // ─── Rate Limiting ─────────────────────────────────────
-    ThrottlerModule.forRoot([
-      {
-        name: 'default',
-        ttl: 60000, // 1 minute window
-        limit: 60, // 60 requests per minute (general)
-      },
-    ]),
+    // ─── Rate Limiting (Redis-backed — counters survive restarts and are shared
+    //     across all Railway instances; fails open when Redis is unavailable) ──
+    ThrottlerModule.forRootAsync({
+      imports: [ThrottlerRedisModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000, // 1 minute window
+            limit: 60,  // 60 requests per minute (general)
+          },
+        ],
+        storage,
+      }),
+    }),
+
+    // ─── Application Cache (global — uses the same Redis URL) ─
+    CacheModule,
 
     // ─── Feature Modules ───────────────────────────────────
     AuthModule,
