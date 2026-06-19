@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { generateFormattedCode } from '../common/utils/code-generator';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../prisma-enums';
 
@@ -547,7 +548,7 @@ export class UsersService {
     const codesToCreate = toAssign.map((userId) => ({
       cardId,
       userId,
-      code: crypto.randomBytes(4).toString('hex').toUpperCase(),
+      code: generateFormattedCode(),
       isUsed: false,
       assignedAt: now,
     }));

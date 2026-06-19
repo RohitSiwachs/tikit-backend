@@ -41,9 +41,10 @@ export class CreateSchoolDto {
   @IsUrl()
   websiteUrl?: string;
 
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  schoolCode: string;
+  schoolCode?: string;
 
   @ApiProperty()
   @IsNotEmpty()
