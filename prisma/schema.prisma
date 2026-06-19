@@ -59,7 +59,7 @@ model User {
   schoolId         String?
   school           School?   @relation(fields: [schoolId], references: [id])
   className        String?
-  age              Int?
+  age              Int?      
   avatarUrl        String?
   isVerified       Boolean   @default(false)
   otpCode          String? // stored as bcrypt hash in production
