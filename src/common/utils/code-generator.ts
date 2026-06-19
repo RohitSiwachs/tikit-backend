@@ -1,9 +1,13 @@
 import * as crypto from 'crypto';
 
 /**
- * Generates an alphanumeric code in the format DDD-DDD-DDD-DDD
+ * Generates a numeric code in the format DDD-DDD-DDD-DDD
+ * where D is a digit from 0-9.
  */
 export function generateFormattedCode(): string {
-  const hex = crypto.randomBytes(6).toString('hex').toUpperCase();
-  return `${hex.slice(0, 3)}-${hex.slice(3, 6)}-${hex.slice(6, 9)}-${hex.slice(9, 12)}`;
+  let digits = '';
+  for (let i = 0; i < 12; i++) {
+    digits += crypto.randomInt(0, 10).toString();
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 9)}-${digits.slice(9, 12)}`;
 }
