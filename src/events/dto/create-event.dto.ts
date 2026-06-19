@@ -162,6 +162,15 @@ export class CreateEventDto {
   @IsString({ each: true })
   linkedCardIds?: string[];
 
+  @ApiProperty({
+    required: false,
+    description:
+      'If true, only students who hold one of the linkedCardIds can see and access this event',
+  })
+  @IsOptional()
+  @IsBoolean()
+  restrictToCardHolders?: boolean;
+
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()
   @IsArray()

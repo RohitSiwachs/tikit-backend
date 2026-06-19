@@ -56,7 +56,7 @@ export class EventsController {
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 10,
       requestingUser: req?.user
-        ? { schoolId: req.user.schoolId, role: req.user.role }
+        ? { id: req.user.id, schoolId: req.user.schoolId, role: req.user.role }
         : undefined,
     });
   }

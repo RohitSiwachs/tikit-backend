@@ -91,7 +91,7 @@ export class EventsService {
     isPublished?: boolean;
     page?: number;
     limit?: number;
-    requestingUser?: { schoolId?: string; role?: string };
+    requestingUser?: { id?: string; schoolId?: string; role?: string };
   }) {
     const cacheKey = CK.eventsList(query);
     const cached = await this.cache.get<any>(cacheKey);
@@ -110,20 +110,47 @@ export class EventsService {
     if (schoolId) where.schoolId = schoolId;
     if (isPublished !== undefined) where.isPublished = isPublished;
 
-    // Visibility rule: INTERNAL events are only visible to students of the hosting school.
-    // EXTERNAL events are visible to everyone. Admins see everything.
-    // Scheduled-but-not-yet-due events are hidden from students.
+    // Visibility rules for students:
+    // 1. INTERNAL events only visible to same-school students; EXTERNAL visible to all.
+    // 2. Scheduled-but-not-yet-due events are hidden.
+    // 3. Card-restricted events are hidden unless the student holds one of the linked cards.
     if (requestingUser?.role === 'STUDENT' && requestingUser?.schoolId) {
-      where.OR = [
-        { eventType: 'EXTERNAL' },
-        { eventType: 'INTERNAL', schoolId: requestingUser.schoolId },
-      ];
-      // Students cannot see events that are scheduled but not yet published
+      const studentCardIds = requestingUser.id
+        ? (
+            await this.prisma.cardCode.findMany({
+              where: { userId: requestingUser.id },
+              select: { cardId: true },
+            })
+          ).map((c) => c.cardId)
+        : [];
+
       where.AND = [
+        // School / event-type visibility
+        {
+          OR: [
+            { eventType: 'EXTERNAL' },
+            { eventType: 'INTERNAL', schoolId: requestingUser.schoolId },
+          ],
+        },
+        // Scheduled visibility
         {
           OR: [
             { scheduledAt: null },
             { scheduledAt: { lte: new Date() } },
+          ],
+        },
+        // Card restriction: unrestricted events OR events whose required cards the student holds
+        {
+          OR: [
+            { restrictToCardHolders: false },
+            ...(studentCardIds.length > 0
+              ? [
+                  {
+                    restrictToCardHolders: true,
+                    linkedCardIds: { hasSome: studentCardIds },
+                  },
+                ]
+              : []),
           ],
         },
       ];
@@ -227,6 +254,18 @@ export class EventsService {
         throw new ForbiddenException(
           'This event is not available for your school',
         );
+      }
+
+      // Card restriction: if enabled, student must hold one of the linked cards
+      if (event.restrictToCardHolders && requestingUser.role === 'STUDENT') {
+        const holdsCard = await this.prisma.cardCode.findFirst({
+          where: { userId: requestingUserId, cardId: { in: event.linkedCardIds } },
+        });
+        if (!holdsCard) {
+          throw new ForbiddenException(
+            'This event requires a specific card to access',
+          );
+        }
       }
     }
 
@@ -750,6 +789,22 @@ export class EventsService {
       throw new ForbiddenException(
         'This event is only available for students of the organizing school',
       );
+    }
+
+    // Card restriction: student must hold one of the linked cards
+    if (
+      event.restrictToCardHolders &&
+      event.linkedCardIds.length > 0 &&
+      student?.role === 'STUDENT'
+    ) {
+      const holdsCard = await this.prisma.cardCode.findFirst({
+        where: { userId, cardId: { in: event.linkedCardIds } },
+      });
+      if (!holdsCard) {
+        throw new ForbiddenException(
+          'This event requires a specific card to access',
+        );
+      }
     }
 
     // All internal event tickets are free — find the first available type
