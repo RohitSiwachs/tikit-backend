@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { generateFormattedCode } from '../common/utils/code-generator';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
@@ -40,6 +41,7 @@ export class SchoolsService {
       const created = await tx.school.create({
         data: {
           ...schoolData,
+          schoolCode: generateFormattedCode(),
           deepLink,
         },
       });
@@ -324,7 +326,7 @@ export class SchoolsService {
     const codesToCreate = students.map((student) => ({
       cardId,
       userId: student.id,
-      code: crypto.randomBytes(4).toString('hex').toUpperCase(),
+      code: generateFormattedCode(),
       isUsed: false,
     }));
 
@@ -385,9 +387,8 @@ export class SchoolsService {
       }
       slugsSeen.add(slug);
 
-      // Auto-generate a unique schoolCode from slug + random hex suffix
-      const codeBase = slug.replace(/-/g, '').toUpperCase().slice(0, 8);
-      const schoolCode = `${codeBase}${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+      // Auto-generate a formatted schoolCode
+      const schoolCode = generateFormattedCode();
 
       toCreate.push({
         idx: rowNum,
@@ -460,7 +461,7 @@ export class SchoolsService {
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
 
     const codes = Array.from({ length: count }, () =>
-      crypto.randomBytes(6).toString('hex').toUpperCase(),
+      generateFormattedCode(),
     );
 
     await this.prisma.schoolInviteCode.createMany({

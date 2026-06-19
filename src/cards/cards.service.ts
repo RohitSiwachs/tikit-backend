@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardDto, UpdateCardDto } from './dto/card.dto';
 import * as crypto from 'crypto';
+import { generateFormattedCode } from '../common/utils/code-generator';
 
 @Injectable()
 export class CardsService {
@@ -29,7 +30,7 @@ export class CardsService {
     for (let i = 0; i < count; i++) {
       codesToCreate.push({
         cardId,
-        code: crypto.randomBytes(4).toString('hex').toUpperCase(),
+        code: generateFormattedCode(),
       });
     }
 
