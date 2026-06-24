@@ -209,7 +209,16 @@ export class PostsService {
       const where: any = {
         OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
       };
-      if (schoolId) where.schoolId = schoolId;
+      if (schoolId) {
+        where.AND = [
+          {
+            OR: [
+              { schoolId },
+              { event: { connectedSchools: { some: { id: schoolId } } } },
+            ],
+          },
+        ];
+      }
       if (type) where.postType = type;
 
       const posts = await this.prisma.post.findMany({
