@@ -107,7 +107,12 @@ export class EventsService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (schoolId) where.schoolId = schoolId;
+    if (schoolId) {
+      where.OR = [
+        { schoolId },
+        { connectedSchools: { some: { id: schoolId } } },
+      ];
+    }
     if (isPublished !== undefined) where.isPublished = isPublished;
 
     // Visibility rules for students:
@@ -202,6 +207,15 @@ export class EventsService {
               include: {
                 school: { select: { id: true, name: true, logoUrl: true } },
                 ticketTypes: true,
+                connectedSchools: { select: { id: true, name: true, logoUrl: true } },
+                connectionRequests: {
+                  select: {
+                    id: true,
+                    requestingSchoolId: true,
+                    status: true,
+                    requestingSchool: { select: { name: true } },
+                  },
+                },
                 _count: {
                   select: { tickets: true, likes: true, comments: true },
                 },
@@ -932,6 +946,13 @@ export class EventsService {
   }
 
   async respondToConnectionRequest(requestId: string, status: string) {
+    const allowed = ['approved', 'rejected'] as const;
+    if (!allowed.includes(status as any)) {
+      throw new BadRequestException(
+        `Invalid status "${status}". Must be one of: ${allowed.join(', ')}`,
+      );
+    }
+
     const request = await this.prisma.eventConnectionRequest.findUnique({
       where: { id: requestId },
     });
