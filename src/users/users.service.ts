@@ -142,6 +142,21 @@ export class UsersService {
     });
   }
 
+  async adminUpdate(id: string, dto: any, requestingUser: any) {
+    const targetUser = await this.prisma.user.findUnique({ where: { id } });
+    if (!targetUser) throw new NotFoundException(`User ${id} not found`);
+
+    if (requestingUser.role !== 'TIKIT_ADMIN' && targetUser.schoolId !== requestingUser.schoolId) {
+      throw new ConflictException('You can only update students from your own school');
+    }
+
+    return this.prisma.user.update({
+      where: { id },
+      data: dto,
+      select: SAFE_USER_SELECT,
+    });
+  }
+
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },

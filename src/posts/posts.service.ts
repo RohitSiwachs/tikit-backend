@@ -139,8 +139,8 @@ export class PostsService {
     return formatPost(post);
   }
 
-  async getFeed(userId: string, page = 1, limit = 20) {
-    const cacheKey = CK.feedBase(page, limit);
+  async getFeed(userId: string, schoolId: string, page = 1, limit = 20) {
+    const cacheKey = CK.feedBase(page, limit, schoolId);
 
     // Cache stores raw posts WITHOUT user-specific pollVotes.
     // All users see the same posts — only the voted option differs per user.
@@ -152,6 +152,14 @@ export class PostsService {
       const where: any = {
         deletedAt: null,
         OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
+        AND: [
+          {
+            OR: [
+              { schoolId },
+              { event: { connectedSchools: { some: { id: schoolId } } } },
+            ],
+          },
+        ],
       };
       const [total, posts] = await Promise.all([
         this.prisma.post.count({ where }),

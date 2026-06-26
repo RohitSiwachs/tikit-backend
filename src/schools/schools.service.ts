@@ -41,7 +41,6 @@ export class SchoolsService {
       const created = await tx.school.create({
         data: {
           ...schoolData,
-          schoolCode: generateFormattedCode(),
           deepLink,
         },
       });
@@ -160,8 +159,13 @@ export class SchoolsService {
       schoolCode,
       pushAllocated, emailAllocated, smsAllocated,
       pushPrice, emailPrice, smsPrice,
+      cardLimit,
       ...schoolData
     } = updateSchoolDto as any;
+
+    if (callerRole === 'TIKIT_ADMIN' && cardLimit !== undefined) {
+      schoolData.cardLimit = cardLimit;
+    }
 
     const school = await this.prisma.school.update({
       where: { id },
@@ -457,12 +461,12 @@ export class SchoolsService {
     });
     if (!school) throw new NotFoundException(`School ${schoolId} not found`);
 
-    const count = Math.min(Math.max(dto.count ?? 1, 1), 500);
-    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    if (!dto.codes || dto.codes.length === 0) {
+      throw new BadRequestException('You must provide an array of codes to create.');
+    }
 
-    const codes = Array.from({ length: count }, () =>
-      generateFormattedCode(),
-    );
+    const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
+    const codes = dto.codes;
 
     await this.prisma.schoolInviteCode.createMany({
       data: codes.map((code) => ({
@@ -475,7 +479,7 @@ export class SchoolsService {
       skipDuplicates: true,
     });
 
-    return { generated: count, codes };
+    return { generated: codes.length, codes };
   }
 
   async listIndividualCodes(

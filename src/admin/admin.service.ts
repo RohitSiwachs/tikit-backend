@@ -104,6 +104,9 @@ export class AdminService {
     if (dto.pushAllocated !== undefined) data.pushAllocated = dto.pushAllocated;
     if (dto.emailAllocated !== undefined) data.emailAllocated = dto.emailAllocated;
     if (dto.smsAllocated !== undefined) data.smsAllocated = dto.smsAllocated;
+    if (dto.pushUsed !== undefined) data.pushUsed = dto.pushUsed;
+    if (dto.emailUsed !== undefined) data.emailUsed = dto.emailUsed;
+    if (dto.smsUsed !== undefined) data.smsUsed = dto.smsUsed;
     if (dto.pushPrice !== undefined) data.pushPrice = dto.pushPrice;
     if (dto.emailPrice !== undefined) data.emailPrice = dto.emailPrice;
     if (dto.smsPrice !== undefined) data.smsPrice = dto.smsPrice;

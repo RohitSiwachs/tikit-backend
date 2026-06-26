@@ -28,7 +28,7 @@ export const CK = {
   school: (id: string) => `schools:${id}`,
 
   // Posts / Feed
-  feedBase: (page: number, limit: number) => `feed:base:${page}:${limit}`,
+  feedBase: (page: number, limit: number, schoolId: string) => `feed:base:${schoolId}:${page}:${limit}`,
   postsList: (params: unknown) => `posts:list:${hash(params)}`,
   postBase: (id: string) => `posts:base:${id}`,
 };

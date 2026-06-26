@@ -14,6 +14,7 @@ import { UsersService } from './users.service';
 import {
   UpdateUserRoleDto,
   UpdateUserApprovalDto,
+  AdminUpdateUserDto,
 } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -112,6 +113,17 @@ export class UsersController {
   @ApiOperation({ summary: 'Get user details' })
   findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @ApiOperation({ summary: 'Update user data as an admin' })
+  adminUpdate(
+    @Param('id') id: string,
+    @Body() dto: AdminUpdateUserDto,
+    @Request() req: any,
+  ) {
+    return this.usersService.adminUpdate(id, dto, req.user);
   }
 
   @Patch(':id/status')

@@ -13,6 +13,23 @@ export class CardsService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreateCardDto) {
+    const school = await this.prisma.school.findUnique({
+      where: { id: dto.schoolId },
+      select: { cardLimit: true },
+    });
+
+    if (!school) {
+      throw new NotFoundException(`School with ID ${dto.schoolId} not found`);
+    }
+
+    const currentCardsCount = await this.prisma.card.count({
+      where: { schoolId: dto.schoolId },
+    });
+
+    if (currentCardsCount >= school.cardLimit) {
+      throw new BadRequestException(`Card limit reached. Your school can only create up to ${school.cardLimit} card(s).`);
+    }
+
     return this.prisma.card.create({
       data: {
         ...dto,

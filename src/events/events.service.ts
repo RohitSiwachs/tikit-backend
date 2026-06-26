@@ -63,6 +63,7 @@ export class EventsService {
         startsAt: new Date(eventData.startsAt),
         endsAt: new Date(eventData.endsAt),
         scheduledAt: scheduledAt ?? null,
+        postedBySuperAdmin: requestingSchoolId === null,
         status: scheduledAt ? 'scheduled' : (eventData.status ?? 'draft'),
         connectedSchools: connectedSchools
           ? { connect: connectedSchools.map((id) => ({ id })) }

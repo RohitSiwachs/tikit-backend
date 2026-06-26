@@ -1,13 +1,12 @@
-import { IsOptional, IsString, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsInt, Min, Max, IsArray } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GenerateIndividualCodesDto {
-  @ApiPropertyOptional({ description: 'Number of codes to generate (1–500, default 1)', default: 1 })
+  @ApiPropertyOptional({ description: 'List of individual invite codes provided from the frontend' })
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(500)
-  count?: number;
+  @IsArray()
+  @IsString({ each: true })
+  codes?: string[];
 
   @ApiPropertyOptional({ description: 'Pre-fill student name on the code' })
   @IsOptional()

@@ -11,6 +11,12 @@ export class UpdateSchoolDto extends PartialType(
   @IsString()
   deepLink?: string;
 
+  @ApiProperty({ required: false, description: 'Max number of cards this school can create (TIKIT_ADMIN only)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  cardLimit?: number;
+
   // ── Communication limits (TIKIT_ADMIN only — ignored for KARORDFORANDE) ──
 
   @ApiProperty({ required: false, description: 'Push notification quota. TIKIT_ADMIN only.' })

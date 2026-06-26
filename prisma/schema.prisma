@@ -30,6 +30,7 @@ model School {
   cards                      Card[]
   posts                      Post[]
   classes                    Class[]
+  cardLimit                  Int       @default(1)
   // ── Shared school code controls ──────────────────────────────────────────
   sharedCodeEnabled          Boolean   @default(true)
   sharedCodeExpiry           DateTime?
@@ -176,6 +177,7 @@ model Event {
   externalPriceDisplay    String?
   linkedCardIds           String[] @default([])
   restrictToCardHolders   Boolean  @default(false)
+  postedBySuperAdmin    Boolean  @default(false)
 
   // Soft delete
   deletedAt DateTime?

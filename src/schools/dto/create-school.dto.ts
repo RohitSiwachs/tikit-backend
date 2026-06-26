@@ -11,6 +11,10 @@ import { ApiProperty } from '@nestjs/swagger';
 export class CreateSchoolDto {
   @ApiProperty()
   @IsString()
+  schoolCode: string;
+
+  @ApiProperty()
+  @IsString()
   name: string;
 
   @ApiProperty()
@@ -41,10 +45,6 @@ export class CreateSchoolDto {
   @IsUrl()
   websiteUrl?: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
-  schoolCode?: string;
 
   @ApiProperty()
   @IsNotEmpty()

@@ -25,6 +25,24 @@ export class UpdateCommunicationAllocationDto {
   @Min(0)
   smsAllocated?: number;
 
+  @ApiPropertyOptional({ description: 'Reset or set used push notifications', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  pushUsed?: number;
+
+  @ApiPropertyOptional({ description: 'Reset or set used emails', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  emailUsed?: number;
+
+  @ApiPropertyOptional({ description: 'Reset or set used SMS', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  smsUsed?: number;
+
   @ApiPropertyOptional({ description: 'Price per push notification', minimum: 0 })
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 4 })
