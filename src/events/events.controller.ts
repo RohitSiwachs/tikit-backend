@@ -313,4 +313,99 @@ export class EventsController {
   ) {
     return this.eventsService.respondToConnectionRequest(requestId, status);
   }
+
+  // --- CONNECTED SCHOOL MANAGEMENT ---
+
+  @Post(':eventId/connections/:schoolId/ticket-types')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Add a ticket type for a connected school' })
+  createConnectionTicketType(
+    @Param('eventId') eventId: string,
+    @Param('schoolId') schoolId: string,
+    @Body() dto: CreateTicketTypeDto,
+    @Request() req: any,
+  ) {
+    const requestingSchoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.createConnectionTicketType(
+      eventId,
+      schoolId,
+      dto,
+      requestingSchoolId,
+    );
+  }
+
+  @Patch(':eventId/connections/:schoolId/ticket-types/:ticketTypeId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Update a ticket type for a connected school' })
+  updateConnectionTicketType(
+    @Param('eventId') eventId: string,
+    @Param('schoolId') schoolId: string,
+    @Param('ticketTypeId') ticketTypeId: string,
+    @Body() dto: UpdateTicketTypeDto,
+    @Request() req: any,
+  ) {
+    const requestingSchoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.updateConnectionTicketType(
+      eventId,
+      schoolId,
+      ticketTypeId,
+      dto,
+      requestingSchoolId,
+    );
+  }
+
+  @Delete(':eventId/connections/:schoolId/ticket-types/:ticketTypeId')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Delete a ticket type for a connected school' })
+  removeConnectionTicketType(
+    @Param('eventId') eventId: string,
+    @Param('schoolId') schoolId: string,
+    @Param('ticketTypeId') ticketTypeId: string,
+    @Request() req: any,
+  ) {
+    const requestingSchoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.removeConnectionTicketType(
+      eventId,
+      schoolId,
+      ticketTypeId,
+      requestingSchoolId,
+    );
+  }
+
+  @Patch(':eventId/connections/:schoolId/publish')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Publish event for a connected school — makes it visible to their students' })
+  publishConnection(
+    @Param('eventId') eventId: string,
+    @Param('schoolId') schoolId: string,
+    @Request() req: any,
+  ) {
+    const requestingSchoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.publishConnection(
+      eventId,
+      schoolId,
+      requestingSchoolId,
+    );
+  }
+
+  @Patch(':eventId/connections/:schoolId/unpublish')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @ApiOperation({ summary: 'Unpublish event for a connected school — hides from their students' })
+  unpublishConnection(
+    @Param('eventId') eventId: string,
+    @Param('schoolId') schoolId: string,
+    @Request() req: any,
+  ) {
+    const requestingSchoolId =
+      req.user.role === Role.TIKIT_ADMIN ? null : req.user.schoolId;
+    return this.eventsService.unpublishConnection(
+      eventId,
+      schoolId,
+      requestingSchoolId,
+    );
+  }
 }

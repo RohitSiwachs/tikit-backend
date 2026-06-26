@@ -135,6 +135,17 @@ export class EventsService {
           OR: [
             { eventType: 'EXTERNAL' },
             { eventType: 'INTERNAL', schoolId: requestingUser.schoolId },
+            {
+              eventType: 'INTERNAL',
+              connectedSchools: { some: { id: requestingUser.schoolId } },
+              // Connected school must have published their side
+              connectionStates: {
+                some: {
+                  schoolId: requestingUser.schoolId,
+                  isPublished: true,
+                },
+              },
+            },
           ],
         },
         // Scheduled visibility
@@ -169,14 +180,37 @@ export class EventsService {
         take: limit,
         include: {
           school: { select: { name: true } },
+          connectionStates: true,
           _count: { select: { tickets: true } },
         },
         orderBy: { startsAt: 'asc' },
       }),
     ]);
 
+    // Enrich each event with the connected school's own publish state + ticket count
+    const enriched = data.map((ev: any) => {
+      const { connectionStates, ...rest } = ev;
+      if (
+        requestingUser?.schoolId &&
+        requestingUser.schoolId !== ev.schoolId
+      ) {
+        const cs = connectionStates?.find(
+          (s: any) => s.schoolId === requestingUser.schoolId,
+        );
+        if (cs) {
+          return {
+            ...rest,
+            viewerRelation: 'connected',
+            connectionPublished: cs.isPublished,
+            connectionPublishedAt: cs.publishedAt,
+          };
+        }
+      }
+      return { ...rest, viewerRelation: 'host' };
+    });
+
     const result = {
-      data,
+      data: enriched,
       meta: {
         total,
         page,
@@ -206,7 +240,7 @@ export class EventsService {
               where: { id },
               include: {
                 school: { select: { id: true, name: true, logoUrl: true } },
-                ticketTypes: true,
+                ticketTypes: { include: { connectionState: { select: { schoolId: true } } } },
                 connectedSchools: { select: { id: true, name: true, logoUrl: true } },
                 connectionRequests: {
                   select: {
@@ -216,6 +250,7 @@ export class EventsService {
                     requestingSchool: { select: { name: true } },
                   },
                 },
+                connectionStates: true,
                 _count: {
                   select: { tickets: true, likes: true, comments: true },
                 },
@@ -263,7 +298,8 @@ export class EventsService {
       if (
         event.eventType === 'INTERNAL' &&
         requestingUser.role === 'STUDENT' &&
-        requestingUser.schoolId !== event.schoolId
+        requestingUser.schoolId !== event.schoolId &&
+        !event.connectedSchools?.some(cs => cs.id === requestingUser.schoolId)
       ) {
         throw new ForbiddenException(
           'This event is not available for your school',
@@ -298,19 +334,51 @@ export class EventsService {
       }
     }
 
-    const totalCapacity = event.ticketTypes.reduce(
+    // Determine viewer relation and filter ticket types
+    let viewerRelation = 'host';
+    let connectionState: any = null;
+    let filteredTicketTypes = event.ticketTypes;
+
+    if (requestingUser && requestingUser.schoolId !== event.schoolId) {
+      const cs = event.connectionStates?.find(
+        (s: any) => s.schoolId === requestingUser.schoolId,
+      );
+      if (cs) {
+        viewerRelation = 'connected';
+        connectionState = cs;
+        // Show only this connected school's ticket types
+        filteredTicketTypes = event.ticketTypes.filter(
+          (tt: any) => tt.connectionState?.schoolId === requestingUser.schoolId,
+        );
+      }
+    } else {
+      // Host: show only host ticket types (connectionStateId is null)
+      filteredTicketTypes = event.ticketTypes.filter(
+        (tt: any) => !tt.connectionStateId,
+      );
+    }
+
+    const totalCapacity = filteredTicketTypes.reduce(
       (acc: number, tt: any) => acc + tt.quantityTotal,
       0,
     );
-    const soldTickets = event.ticketTypes.reduce(
+    const soldTickets = filteredTicketTypes.reduce(
       (acc: number, tt: any) => acc + (tt.quantityTotal - tt.quantityRemaining),
       0,
     );
 
-    const { _count, ...rest } = event as any;
+    const { _count, connectionStates, ...rest } = event as any;
 
     return {
       ...rest,
+      ticketTypes: filteredTicketTypes,
+      viewerRelation,
+      ...(connectionState
+        ? {
+            connectionPublished: connectionState.isPublished,
+            connectionPublishedAt: connectionState.publishedAt,
+          }
+        : {}),
       stats: {
         totalCapacity,
         soldTickets,
@@ -782,7 +850,11 @@ export class EventsService {
   async fetchFreeTicket(eventId: string, userId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
-      include: { ticketTypes: true },
+      include: {
+        ticketTypes: { include: { connectionState: { select: { schoolId: true } } } },
+        connectedSchools: { select: { id: true } },
+        connectionStates: true,
+      },
     });
 
     if (!event)
@@ -794,14 +866,19 @@ export class EventsService {
       );
     }
 
-    // School restriction: only students of the hosting school may RSVP internal events
+    // School restriction: student must be from the host school or an approved connected school
     const student = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { schoolId: true, role: true },
     });
-    if (student?.role === 'STUDENT' && student.schoolId !== event.schoolId) {
+    const isHostStudent = student?.schoolId === event.schoolId;
+    const isConnectedStudent =
+      student?.schoolId &&
+      event.connectedSchools.some((cs) => cs.id === student.schoolId);
+
+    if (student?.role === 'STUDENT' && !isHostStudent && !isConnectedStudent) {
       throw new ForbiddenException(
-        'This event is only available for students of the organizing school',
+        'This event is only available for students of the organizing or connected schools',
       );
     }
 
@@ -821,8 +898,21 @@ export class EventsService {
       }
     }
 
+    // Filter ticket types: host students get host tickets, connected students get their school's tickets
+    let eligibleTicketTypes = event.ticketTypes;
+    if (isConnectedStudent && student?.schoolId) {
+      eligibleTicketTypes = event.ticketTypes.filter(
+        (tt) => tt.connectionState?.schoolId === student.schoolId,
+      );
+    } else {
+      // Host student: only host ticket types (connectionStateId is null)
+      eligibleTicketTypes = event.ticketTypes.filter(
+        (tt) => !tt.connectionStateId,
+      );
+    }
+
     // All internal event tickets are free — find the first available type
-    const availableTicketType = event.ticketTypes.find(
+    const availableTicketType = eligibleTicketTypes.find(
       (tt) => tt.quantityRemaining > 0 && !tt.isSoldOut,
     );
     if (!availableTicketType)
@@ -972,6 +1062,22 @@ export class EventsService {
           },
         },
       });
+
+      // Create an EventConnectionState for this school (idempotent via upsert)
+      await this.prisma.eventConnectionState.upsert({
+        where: {
+          eventId_schoolId: {
+            eventId: request.eventId,
+            schoolId: request.requestingSchoolId,
+          },
+        },
+        create: {
+          eventId: request.eventId,
+          schoolId: request.requestingSchoolId,
+        },
+        update: {}, // no-op if already exists
+      });
+
       // Invalidate event base cache since connectedSchools changed
       await this.invalidateEventCaches(request.eventId);
     } else if (status === 'rejected') {
@@ -983,5 +1089,185 @@ export class EventsService {
       where: { id: requestId },
       data: { status },
     });
+  }
+
+  // --- CONNECTED SCHOOL MANAGEMENT ---
+
+  /**
+   * Resolves the EventConnectionState for a connected school,
+   * verifying the requesting school matches.
+   */
+  private async getConnectionState(eventId: string, schoolId: string) {
+    const state = await this.prisma.eventConnectionState.findUnique({
+      where: { eventId_schoolId: { eventId, schoolId } },
+    });
+    if (!state) {
+      throw new NotFoundException(
+        'No connection state found — this school is not connected to this event',
+      );
+    }
+    return state;
+  }
+
+  async createConnectionTicketType(
+    eventId: string,
+    schoolId: string,
+    dto: CreateTicketTypeDto,
+    requestingSchoolId?: string | null,
+  ) {
+    // Only the connected school (or TIKIT_ADMIN) can add their own ticket types
+    if (requestingSchoolId && requestingSchoolId !== schoolId) {
+      throw new ForbiddenException(
+        'You can only manage ticket types for your own school connection',
+      );
+    }
+
+    const connectionState = await this.getConnectionState(eventId, schoolId);
+
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { eventType: true },
+    });
+    if (!event) throw new NotFoundException(`Event ${eventId} not found`);
+
+    // Internal events: price is always 0
+    const data =
+      event.eventType === 'INTERNAL'
+        ? { ...dto, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        : { ...dto, price: dto.price ?? 0 };
+
+    const ticketType = await this.prisma.ticketType.create({
+      data: {
+        ...data,
+        eventId,
+        connectionStateId: connectionState.id,
+        quantityRemaining: dto.quantityTotal,
+      },
+    });
+
+    await this.invalidateEventCaches(eventId);
+    return ticketType;
+  }
+
+  async updateConnectionTicketType(
+    eventId: string,
+    schoolId: string,
+    ticketTypeId: string,
+    dto: UpdateTicketTypeDto,
+    requestingSchoolId?: string | null,
+  ) {
+    if (requestingSchoolId && requestingSchoolId !== schoolId) {
+      throw new ForbiddenException(
+        'You can only manage ticket types for your own school connection',
+      );
+    }
+
+    const connectionState = await this.getConnectionState(eventId, schoolId);
+
+    const tt = await this.prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+      select: { eventId: true, connectionStateId: true, event: { select: { eventType: true } } },
+    });
+    if (!tt || tt.eventId !== eventId) {
+      throw new NotFoundException('Ticket type not found for this event');
+    }
+    if (tt.connectionStateId !== connectionState.id) {
+      throw new ForbiddenException(
+        'This ticket type does not belong to your school connection',
+      );
+    }
+
+    // Internal events: freeForHostSchool must always remain true
+    const data =
+      tt.event.eventType === 'INTERNAL'
+        ? { ...dto, freeForHostSchool: true }
+        : dto;
+
+    const result = await this.prisma.ticketType.update({
+      where: { id: ticketTypeId },
+      data,
+    });
+
+    await this.invalidateEventCaches(eventId);
+    return result;
+  }
+
+  async removeConnectionTicketType(
+    eventId: string,
+    schoolId: string,
+    ticketTypeId: string,
+    requestingSchoolId?: string | null,
+  ) {
+    if (requestingSchoolId && requestingSchoolId !== schoolId) {
+      throw new ForbiddenException(
+        'You can only manage ticket types for your own school connection',
+      );
+    }
+
+    const connectionState = await this.getConnectionState(eventId, schoolId);
+
+    const tt = await this.prisma.ticketType.findUnique({
+      where: { id: ticketTypeId },
+      select: { eventId: true, connectionStateId: true },
+    });
+    if (!tt || tt.eventId !== eventId) {
+      throw new NotFoundException('Ticket type not found for this event');
+    }
+    if (tt.connectionStateId !== connectionState.id) {
+      throw new ForbiddenException(
+        'This ticket type does not belong to your school connection',
+      );
+    }
+
+    const result = await this.prisma.ticketType.delete({
+      where: { id: ticketTypeId },
+    });
+
+    await this.invalidateEventCaches(eventId);
+    return result;
+  }
+
+  async publishConnection(
+    eventId: string,
+    schoolId: string,
+    requestingSchoolId?: string | null,
+  ) {
+    if (requestingSchoolId && requestingSchoolId !== schoolId) {
+      throw new ForbiddenException(
+        'You can only publish your own school connection',
+      );
+    }
+
+    await this.getConnectionState(eventId, schoolId);
+
+    const result = await this.prisma.eventConnectionState.update({
+      where: { eventId_schoolId: { eventId, schoolId } },
+      data: { isPublished: true, publishedAt: new Date() },
+    });
+
+    await this.invalidateEventCaches(eventId);
+    return result;
+  }
+
+  async unpublishConnection(
+    eventId: string,
+    schoolId: string,
+    requestingSchoolId?: string | null,
+  ) {
+    if (requestingSchoolId && requestingSchoolId !== schoolId) {
+      throw new ForbiddenException(
+        'You can only unpublish your own school connection',
+      );
+    }
+
+    await this.getConnectionState(eventId, schoolId);
+
+    const result = await this.prisma.eventConnectionState.update({
+      where: { eventId_schoolId: { eventId, schoolId } },
+      data: { isPublished: false, publishedAt: null },
+    });
+
+    await this.invalidateEventCaches(eventId);
+    return result;
   }
 }
