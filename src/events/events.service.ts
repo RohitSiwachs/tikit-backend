@@ -57,6 +57,16 @@ export class EventsService {
         : { ...tt, price: tt.price ?? 0 },
     );
 
+    // Validate cards if provided
+    if (dto.linkedCardIds?.length) {
+      const validCardsCount = await this.prisma.card.count({
+        where: { id: { in: dto.linkedCardIds } },
+      });
+      if (validCardsCount !== dto.linkedCardIds.length) {
+        throw new BadRequestException('One or more linkedCardIds are invalid');
+      }
+    }
+
     const event = await this.prisma.event.create({
       data: {
         ...eventData,
@@ -67,6 +77,9 @@ export class EventsService {
         status: scheduledAt ? 'scheduled' : (eventData.status ?? 'draft'),
         connectedSchools: connectedSchools
           ? { connect: connectedSchools.map((id) => ({ id })) }
+          : undefined,
+        connectionStates: connectedSchools
+          ? { create: connectedSchools.map((id) => ({ schoolId: id })) }
           : undefined,
         ticketTypes: {
           create: normalizedTicketTypes.map((tt) => ({
@@ -401,6 +414,16 @@ export class EventsService {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
     const { ticketTypes, connectedSchools, scheduledAt: scheduledAtStr, ...updateData } = dto;
 
+    // Validate cards if provided
+    if (updateData.linkedCardIds?.length) {
+      const validCardsCount = await this.prisma.card.count({
+        where: { id: { in: updateData.linkedCardIds } },
+      });
+      if (validCardsCount !== updateData.linkedCardIds.length) {
+        throw new BadRequestException('One or more linkedCardIds are invalid');
+      }
+    }
+
     const data: any = { ...updateData };
     if (updateData.startsAt) data.startsAt = new Date(updateData.startsAt);
     if (updateData.endsAt) data.endsAt = new Date(updateData.endsAt);
@@ -440,6 +463,26 @@ export class EventsService {
         connectedSchools: true,
       },
     });
+
+    if (connectedSchools) {
+      // Sync EventConnectionStates for the newly set connectedSchools
+      await Promise.all(
+        connectedSchools.map((schoolId) =>
+          this.prisma.eventConnectionState.upsert({
+            where: { eventId_schoolId: { eventId: id, schoolId } },
+            create: { eventId: id, schoolId },
+            update: {},
+          }),
+        ),
+      );
+      // Remove connection states for schools that are no longer connected
+      await this.prisma.eventConnectionState.deleteMany({
+        where: {
+          eventId: id,
+          schoolId: { notIn: connectedSchools },
+        },
+      });
+    }
 
     await this.invalidateEventCaches(id);
     return event;

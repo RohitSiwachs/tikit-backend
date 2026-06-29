@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,8 +21,23 @@ export class NotificationsService {
     private readonly notificationsQueue: Queue,
   ) {}
 
-  async sendToSegment(dto: SendNotificationDto) {
+  async sendToSegment(dto: SendNotificationDto, requestingUser?: any) {
     const { segmentFilters } = dto;
+
+    // School admin can ONLY send to their own school's students.
+    // Super admin (TIKIT_ADMIN) can target any school.
+    if (requestingUser?.role === 'KARORDFORANDE') {
+      if (!requestingUser.schoolId) {
+        throw new ForbiddenException('School admin must belong to a school');
+      }
+      if (segmentFilters.schoolId && segmentFilters.schoolId !== requestingUser.schoolId) {
+        throw new ForbiddenException(
+          'You can only send notifications to students in your own school',
+        );
+      }
+      // Force scope to their own school even if not provided in the request
+      segmentFilters.schoolId = requestingUser.schoolId;
+    }
 
     const where: any = {
       deletedAt: null,

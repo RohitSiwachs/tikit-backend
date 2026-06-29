@@ -306,13 +306,17 @@ export class PostsService {
   async update(
     id: string,
     updatePostDto: UpdatePostDto,
-    requestingUserId: string,
-    isAdmin: boolean,
+    user: any,
   ) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
-    if (!isAdmin && post.authorId !== requestingUserId) {
-      throw new ForbiddenException('You can only edit your own posts');
+    
+    const isSuperAdmin = user.role === 'TIKIT_ADMIN';
+    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && post.schoolId === user.schoolId);
+
+    if (!hasAdminRights && post.authorId !== user.id) {
+      throw new ForbiddenException('You can only edit your own posts or posts in your school');
     }
 
     const { pollOptions: _, pollExpiresAt: __, ...updateData } = updatePostDto;
@@ -328,21 +332,26 @@ export class PostsService {
           },
         },
         pollVotes: {
-          where: { userId: requestingUserId },
+          where: { userId: user.id },
           select: { optionId: true },
         },
       },
     });
 
     await this.invalidatePostCaches(id);
-    return formatPost(updatedPost, requestingUserId);
+    return formatPost(updatedPost, user.id);
   }
 
-  async remove(id: string, requestingUserId: string, isAdmin: boolean) {
+  async remove(id: string, user: any) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
-    if (!isAdmin && post.authorId !== requestingUserId) {
-      throw new ForbiddenException('You can only delete your own posts');
+
+    const isSuperAdmin = user.role === 'TIKIT_ADMIN';
+    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && post.schoolId === user.schoolId);
+
+    if (!hasAdminRights && post.authorId !== user.id) {
+      throw new ForbiddenException('You can only delete your own posts or posts in your school');
     }
 
     const result = await this.prisma.post.delete({ where: { id } });
@@ -395,15 +404,20 @@ export class PostsService {
 
   async deleteComment(
     commentId: string,
-    requestingUserId: string,
-    isAdmin: boolean,
+    user: any,
   ) {
     const comment = await this.prisma.postComment.findUnique({
       where: { id: commentId },
+      include: { post: true }
     });
     if (!comment) throw new NotFoundException('Comment not found');
-    if (!isAdmin && comment.authorId !== requestingUserId) {
-      throw new ForbiddenException('You can only delete your own comments');
+
+    const isSuperAdmin = user.role === 'TIKIT_ADMIN';
+    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && comment.post.schoolId === user.schoolId);
+
+    if (!hasAdminRights && comment.authorId !== user.id) {
+      throw new ForbiddenException('You can only delete your own comments or comments in your school');
     }
 
     return this.prisma.postComment.delete({ where: { id: commentId } });

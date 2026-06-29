@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, Request } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { SendNotificationDto } from './dto/notification.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
@@ -13,8 +13,8 @@ export class NotificationsController {
 
   @Post('send')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Send targeted notifications' })
-  sendToSegment(@Body() dto: SendNotificationDto) {
-    return this.notificationsService.sendToSegment(dto);
+  @ApiOperation({ summary: 'Send targeted push notifications' })
+  sendToSegment(@Body() dto: SendNotificationDto, @Request() req: any) {
+    return this.notificationsService.sendToSegment(dto, req.user);
   }
 }

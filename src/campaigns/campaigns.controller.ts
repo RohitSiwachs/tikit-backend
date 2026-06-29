@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Request,
 } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
 import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
@@ -22,8 +23,8 @@ export class CampaignsController {
   @Post()
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Create a new campaign' })
-  create(@Body() createCampaignDto: CreateCampaignDto) {
-    return this.campaignsService.create(createCampaignDto);
+  create(@Body() createCampaignDto: CreateCampaignDto, @Request() req: any) {
+    return this.campaignsService.create(createCampaignDto, req.user);
   }
 
   @Get()
@@ -60,8 +61,8 @@ export class CampaignsController {
   @Post(':id/send')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Trigger a manual send of a campaign' })
-  triggerSend(@Param('id') id: string) {
-    return this.campaignsService.triggerSend(id);
+  triggerSend(@Param('id') id: string, @Request() req: any) {
+    return this.campaignsService.triggerSend(id, req.user);
   }
 
   @Get(':id/report')

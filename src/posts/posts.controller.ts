@@ -73,16 +73,14 @@ export class PostsController {
     @Body() updatePostDto: UpdatePostDto,
     @Request() req: any,
   ) {
-    const isAdmin = ADMIN_ROLES.includes(req.user.role);
-    return this.postsService.update(id, updatePostDto, req.user.id, isAdmin);
+    return this.postsService.update(id, updatePostDto, req.user);
   }
 
   @Delete(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Delete a post (owner or admin only)' })
   remove(@Param('id') id: string, @Request() req: any) {
-    const isAdmin = ADMIN_ROLES.includes(req.user.role);
-    return this.postsService.remove(id, req.user.id, isAdmin);
+    return this.postsService.remove(id, req.user);
   }
 
   @Post(':id/like')
@@ -113,8 +111,7 @@ export class PostsController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Delete a comment (owner or admin only)' })
   deleteComment(@Param('commentId') commentId: string, @Request() req: any) {
-    const isAdmin = ADMIN_ROLES.includes(req.user.role);
-    return this.postsService.deleteComment(commentId, req.user.id, isAdmin);
+    return this.postsService.deleteComment(commentId, req.user);
   }
 
   @Post(':id/vote')

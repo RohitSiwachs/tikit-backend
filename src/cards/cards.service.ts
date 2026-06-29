@@ -65,9 +65,39 @@ export class CardsService {
   async exportCodes(cardId: string) {
     const codes = await this.prisma.cardCode.findMany({
       where: { cardId },
-      select: { code: true, isUsed: true, usedAt: true },
+      select: {
+        code: true,
+        isUsed: true,
+        assignedAt: true,
+        usedAt: true,
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            firstName: true,
+            lastName: true,
+            className: true,
+          },
+        },
+      },
+      orderBy: { assignedAt: 'desc' },
     });
-    return codes;
+
+    return codes.map((c) => ({
+      code: c.code,
+      isUsed: c.isUsed,
+      assignedAt: c.assignedAt,
+      usedAt: c.usedAt,
+      student: c.user
+        ? {
+            id: c.user.id,
+            displayName: c.user.displayName,
+            firstName: c.user.firstName,
+            lastName: c.user.lastName,
+            className: c.user.className ?? null,
+          }
+        : null,
+    }));
   }
 
   async pauseCard(cardId: string) {
@@ -216,6 +246,19 @@ export class CardsService {
     }
     if (!user.schoolId || cardCode.card.schoolId !== user.schoolId) {
       throw new BadRequestException('This card does not belong to your school');
+    }
+
+    // Check if the user already holds a code for this card
+    const existingClaim = await this.prisma.cardCode.findFirst({
+      where: {
+        userId,
+        cardId: cardCode.cardId,
+        id: { not: cardCode.id }, // Exclude the code they are currently trying to claim (if pre-assigned)
+      },
+    });
+
+    if (existingClaim) {
+      throw new BadRequestException('You already have this card');
     }
 
     // Atomic claim: re-read inside transaction to prevent double-activation

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -52,9 +53,24 @@ export class CampaignsService {
     @InjectQueue(CAMPAIGNS_QUEUE) private readonly campaignsQueue: Queue,
   ) {}
 
-  create(dto: CreateCampaignDto) {
+  create(dto: CreateCampaignDto, requestingUser?: any) {
     const data: any = { ...dto };
     if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
+
+    // School admin: force segmentFilters.schoolId to their own school
+    if (requestingUser?.role === 'KARORDFORANDE') {
+      if (!requestingUser.schoolId) {
+        throw new ForbiddenException('School admin must belong to a school');
+      }
+      const existingFilters = (data.segmentFilters as any) ?? {};
+      if (existingFilters.schoolId && existingFilters.schoolId !== requestingUser.schoolId) {
+        throw new ForbiddenException(
+          'You can only create campaigns targeting your own school',
+        );
+      }
+      data.segmentFilters = { ...existingFilters, schoolId: requestingUser.schoolId };
+    }
+
     return this.prisma.campaign.create({ data });
   }
 
@@ -80,8 +96,22 @@ export class CampaignsService {
 
   async triggerSend(
     id: string,
+    requestingUser?: any,
   ): Promise<{ message: string; campaignId: string }> {
     const campaign = await this.findOne(id);
+
+    // School admin can only send campaigns scoped to their own school
+    if (requestingUser?.role === 'KARORDFORANDE') {
+      if (!requestingUser.schoolId) {
+        throw new ForbiddenException('School admin must belong to a school');
+      }
+      const campaignSchoolId = (campaign.segmentFilters as any)?.schoolId;
+      if (campaignSchoolId && campaignSchoolId !== requestingUser.schoolId) {
+        throw new ForbiddenException(
+          'You can only send campaigns targeting your own school',
+        );
+      }
+    }
 
     if (campaign.status === 'sent') {
       throw new BadRequestException('Campaign has already been sent');
