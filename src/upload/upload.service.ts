@@ -25,6 +25,7 @@ export class UploadService {
         accessKeyId: s3Conf.accessKeyId,
         secretAccessKey: s3Conf.secretAccessKey,
       },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
     });
   }
 

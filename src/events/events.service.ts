@@ -490,8 +490,15 @@ export class EventsService {
 
   async getAttendees(
     id: string,
+    callerRole: string,
     query?: { search?: string; status?: string; page?: number; limit?: number },
   ) {
+    const isPrivileged = [
+      'TIKIT_ADMIN',
+      'KARORDFORANDE',
+      'EVENTANSVARIG',
+    ].includes(callerRole);
+
     const search = query?.search;
     const status = query?.status;
     const page = query?.page ? parseInt(query.page as any) : 1;
@@ -500,20 +507,24 @@ export class EventsService {
 
     const where: any = { eventId: id };
 
-    if (status) {
+    if (status && isPrivileged) {
       where.status = status;
     }
 
     if (search) {
       where.OR = [
-        { code: { contains: search, mode: 'insensitive' } },
+        ...(isPrivileged
+          ? [{ code: { contains: search, mode: 'insensitive' } }]
+          : []),
         {
           user: {
             OR: [
               { displayName: { contains: search, mode: 'insensitive' } },
               { firstName: { contains: search, mode: 'insensitive' } },
               { lastName: { contains: search, mode: 'insensitive' } },
-              { email: { contains: search, mode: 'insensitive' } },
+              ...(isPrivileged
+                ? [{ email: { contains: search, mode: 'insensitive' } }]
+                : []),
             ],
           },
         },
@@ -534,9 +545,8 @@ export class EventsService {
               displayName: true,
               firstName: true,
               lastName: true,
-              email: true,
               avatarUrl: true,
-              age: true,
+              ...(isPrivileged && { email: true, age: true }),
             },
           },
         },
@@ -544,19 +554,26 @@ export class EventsService {
       }),
     ]);
 
-    const attendees = tickets.map((t) => ({
-      id: t.user.id,
-      displayName: t.user.displayName,
-      firstName: t.user.firstName,
-      lastName: t.user.lastName,
-      avatarUrl: t.user.avatarUrl,
-      age: t.user.age,
-      ticketId: t.id,
-      ticketCode: t.code,
-      ticketStatus: t.status,
-      ticketTypeName: t.ticketType?.name,
-      checkedInAt: t.checkedInAt,
-    }));
+    const attendees = isPrivileged
+      ? tickets.map((t) => ({
+          id: t.user.id,
+          displayName: t.user.displayName,
+          firstName: t.user.firstName,
+          lastName: t.user.lastName,
+          avatarUrl: t.user.avatarUrl,
+          email: (t.user as any).email,
+          age: (t.user as any).age,
+          ticketId: t.id,
+          ticketCode: t.code,
+          ticketStatus: t.status,
+          ticketTypeName: t.ticketType?.name,
+          checkedInAt: t.checkedInAt,
+        }))
+      : tickets.map((t) => ({
+          id: t.user.id,
+          displayName: t.user.displayName,
+          avatarUrl: t.user.avatarUrl,
+        }));
 
     return {
       data: attendees,

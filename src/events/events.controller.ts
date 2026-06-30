@@ -85,24 +85,35 @@ export class EventsController {
   }
 
   @Get(':id/attendees')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(
+    Role.TIKIT_ADMIN,
+    Role.KARORDFORANDE,
+    Role.EVENTANSVARIG,
+    Role.STUDENT,
+    Role.SCANNER,
+  )
   @ApiOperation({
     summary:
       'Get list of attendees for an event with search, filtering, and pagination',
   })
   getAttendees(
     @Param('id') id: string,
+    @Request() req: any,
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.eventsService.getAttendees(id, {
-      search,
-      status,
-      page: page ? parseInt(page) : undefined,
-      limit: limit ? parseInt(limit) : undefined,
-    });
+    return this.eventsService.getAttendees(
+      id,
+      req.user.role,
+      {
+        search,
+        status,
+        page: page ? parseInt(page) : undefined,
+        limit: limit ? parseInt(limit) : undefined,
+      },
+    );
   }
 
   @Delete(':id')
