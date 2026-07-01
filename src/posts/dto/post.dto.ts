@@ -7,10 +7,11 @@ export class CreatePostDto {
   @IsNotEmpty()
   body: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, type: [String] })
   @IsOptional()
-  @IsString()
-  imageUrl?: string;
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls?: string[];
 
   @ApiProperty()
   @IsString()
