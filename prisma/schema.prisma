@@ -297,7 +297,7 @@ model Card {
 model Post {
   id          String        @id @default(uuid())
   body        String
-  imageUrl    String?
+  imageUrls   String[]
   postType    String        @default("text")
   schoolId    String
   school      School        @relation(fields: [schoolId], references: [id])
