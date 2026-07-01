@@ -78,7 +78,7 @@ export class SchedulerService {
 
     for (const post of posts) {
       this.logger.log(
-        `Published post: "${post.body.substring(0, 40)}..." (${post.id})`,
+        `Published post: "${(post.body ?? '').substring(0, 40)}..." (${post.id})`,
       );
     }
   }

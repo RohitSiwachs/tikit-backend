@@ -296,8 +296,8 @@ model Card {
 
 model Post {
   id          String        @id @default(uuid())
-  body        String
-  imageUrls   String[]
+  body        String?
+  imageUrls   String[]      @default([])
   postType    String        @default("text")
   schoolId    String
   school      School        @relation(fields: [schoolId], references: [id])
@@ -310,11 +310,19 @@ model Post {
   pollOptions PollOption[]
   pollVotes   PollVote[]
 
+  // Countdown post fields
+  title         String?
+  eventDateTime DateTime?
+  location      String?
+  badgeText     String?
+  isPublished   Boolean   @default(false)
+
   // Soft delete
   pollExpiresAt DateTime?
   scheduledAt   DateTime?
   deletedAt     DateTime?
   createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([schoolId])
   @@index([deletedAt])

@@ -19,6 +19,10 @@ const POST_AUTHOR_SELECT = {
 
 function formatPost(post: any, userId?: string) {
   if (!post) return post;
+  if (post.postType === PostType.COUNTDOWN) {
+    const { pollOptions, pollVotes, ...rest } = post;
+    return rest;
+  }
   if (post.postType !== PostType.POLL) {
     // Destructure out the relation properties we don't need for non-polls
     const { pollOptions, pollVotes, ...rest } = post;
@@ -86,6 +90,28 @@ export class PostsService {
           'scheduledAt must be a valid date in the future',
         );
       }
+    }
+
+    if (createPostDto.postType === PostType.COUNTDOWN) {
+      if (!createPostDto.title) {
+        throw new BadRequestException('Countdown posts must have a title');
+      }
+      if (!createPostDto.eventDateTime) {
+        throw new BadRequestException('Countdown posts must have an eventDateTime');
+      }
+      const eventDateTime = new Date(createPostDto.eventDateTime);
+      if (isNaN(eventDateTime.getTime()) || eventDateTime <= new Date()) {
+        throw new BadRequestException('eventDateTime must be a valid date in the future');
+      }
+
+      const { pollOptions: _p, pollExpiresAt: _pe, scheduledAt: _s, ...postData } = createPostDto;
+      const post = await this.prisma.post.create({
+        data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
+        include: { author: { select: POST_AUTHOR_SELECT } },
+      });
+
+      await this.invalidatePostListCaches();
+      return formatPost(post);
     }
 
     if (createPostDto.postType === PostType.POLL) {

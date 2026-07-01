@@ -1,11 +1,11 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsArray, IsDateString } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsDateString, IsBoolean } from 'class-validator';
 
 export class CreatePostDto {
-  @ApiProperty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  body: string;
+  body?: string;
 
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()
@@ -48,6 +48,33 @@ export class CreatePostDto {
   @IsOptional()
   @IsDateString()
   scheduledAt?: string;
+
+  // ── Countdown post fields ─────────────────────────────────────────────────
+
+  @ApiProperty({ required: false, description: 'Event name displayed on the countdown card (e.g. "Vinterbalen")' })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiProperty({ required: false, description: 'ISO timestamp the client uses to calculate remaining time' })
+  @IsOptional()
+  @IsDateString()
+  eventDateTime?: string;
+
+  @ApiProperty({ required: false, description: 'Venue / location string (e.g. "Valand")' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiProperty({ required: false, description: 'Badge label shown above the title (e.g. "SNART DAGS")' })
+  @IsOptional()
+  @IsString()
+  badgeText?: string;
+
+  @ApiProperty({ required: false, default: false })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
 }
 
 export class UpdatePostDto extends PartialType(CreatePostDto) {}

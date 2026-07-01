@@ -30,6 +30,7 @@ export enum PostType {
   TEXT = 'text',
   POLL = 'poll',
   EVENT_PROMO = 'event_promo',
+  COUNTDOWN = 'countdown',
 }
 
 export enum FollowType {
