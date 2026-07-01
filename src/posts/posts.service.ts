@@ -182,6 +182,7 @@ export class PostsService {
           {
             OR: [
               { schoolId },
+              { event: { schoolId: schoolId } },
               { event: { connectedSchools: { some: { id: schoolId } } } },
             ],
           },
@@ -248,6 +249,7 @@ export class PostsService {
           {
             OR: [
               { schoolId },
+              { event: { schoolId: schoolId } },
               { event: { connectedSchools: { some: { id: schoolId } } } },
             ],
           },
@@ -334,15 +336,26 @@ export class PostsService {
     updatePostDto: UpdatePostDto,
     user: any,
   ) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({
+      where: { id },
+      include: {
+        event: {
+          include: { connectedSchools: { select: { id: true } } }
+        }
+      }
+    });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
     
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
     const isSchoolAdmin = user.role === 'KARORDFORANDE';
-    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && post.schoolId === user.schoolId);
+    
+    const isEventHostSchool = post.event?.schoolId === user.schoolId;
+    const isEventConnectedSchool = post.event?.connectedSchools.some(s => s.id === user.schoolId);
+    
+    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && (post.schoolId === user.schoolId || isEventHostSchool || isEventConnectedSchool));
 
     if (!hasAdminRights && post.authorId !== user.id) {
-      throw new ForbiddenException('You can only edit your own posts or posts in your school');
+      throw new ForbiddenException('You can only edit your own posts or posts in your school/event');
     }
 
     const { pollOptions: _, pollExpiresAt: __, ...updateData } = updatePostDto;
@@ -369,15 +382,26 @@ export class PostsService {
   }
 
   async remove(id: string, user: any) {
-    const post = await this.prisma.post.findUnique({ where: { id } });
+    const post = await this.prisma.post.findUnique({
+      where: { id },
+      include: {
+        event: {
+          include: { connectedSchools: { select: { id: true } } }
+        }
+      }
+    });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
 
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
     const isSchoolAdmin = user.role === 'KARORDFORANDE';
-    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && post.schoolId === user.schoolId);
+
+    const isEventHostSchool = post.event?.schoolId === user.schoolId;
+    const isEventConnectedSchool = post.event?.connectedSchools.some(s => s.id === user.schoolId);
+
+    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && (post.schoolId === user.schoolId || isEventHostSchool || isEventConnectedSchool));
 
     if (!hasAdminRights && post.authorId !== user.id) {
-      throw new ForbiddenException('You can only delete your own posts or posts in your school');
+      throw new ForbiddenException('You can only delete your own posts or posts in your school/event');
     }
 
     const result = await this.prisma.post.delete({ where: { id } });
