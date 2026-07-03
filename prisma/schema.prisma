@@ -24,6 +24,7 @@ model School {
   contactEmail               String?
   contactPhone               String?
   address                    String?
+  tempAdminPassword          String?   // Plain-text temp password set during CSV import — visible to TIKIT_ADMIN only
   users                      User[]
   events                     Event[]
   connectedEvents            Event[]   @relation("EventConnectedSchools")

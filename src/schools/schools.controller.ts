@@ -10,12 +10,16 @@ import {
   Request,
   ForbiddenException,
   Res,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Role } from '../prisma-enums';
@@ -49,6 +53,36 @@ export class SchoolsController {
   @ApiBody({ type: BulkCreateSchoolsDto })
   bulkCreate(@Body() body: BulkCreateSchoolsDto) {
     return this.schoolsService.bulkCreate(body.schools);
+  }
+
+  @Post('upload-csv')
+  @Roles(Role.TIKIT_ADMIN)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({
+    summary: 'Upload schools from a CSV file (TIKIT_ADMIN only). Creates school + admin user + communication allocation per row.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV file. Required columns: name, slug, city, contactEmail. Optional: description, contactPhone, address',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  async uploadSchoolsCsv(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded. Send a multipart/form-data request with field name "file"');
+    }
+    if (!file.originalname.endsWith('.csv') && file.mimetype !== 'text/csv') {
+      throw new BadRequestException('Only .csv files are accepted');
+    }
+    return this.schoolsService.uploadSchoolsCsv(file.buffer);
   }
 
   // Must be before /:id routes to avoid routing conflict
@@ -97,9 +131,9 @@ export class SchoolsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get school details by ID' })
-  findOne(@Param('id') id: string) {
-    return this.schoolsService.findOne(id);
+  @ApiOperation({ summary: 'Get school details by ID. tempAdminPassword visible to TIKIT_ADMIN only.' })
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.schoolsService.findOne(id, req.user?.role);
   }
 
   @Patch(':id')

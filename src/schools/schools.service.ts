@@ -133,9 +133,17 @@ export class SchoolsService {
     return result;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, callerRole?: string) {
     const cached = await this.cache.get<any>(CK.school(id));
-    if (cached) return cached;
+
+    if (cached) {
+      // Strip sensitive field for non-admins even from cache
+      if (callerRole !== 'TIKIT_ADMIN') {
+        const { tempAdminPassword: _stripped, ...safe } = cached;
+        return safe;
+      }
+      return cached;
+    }
 
     const school = await this.prisma.school.findUnique({
       where: { id },
@@ -151,6 +159,13 @@ export class SchoolsService {
     }
 
     await this.cache.set(CK.school(id), school, TTL.SCHOOL);
+
+    // tempAdminPassword is only visible to TIKIT_ADMIN
+    if (callerRole !== 'TIKIT_ADMIN') {
+      const { tempAdminPassword: _stripped, ...safe } = school as any;
+      return safe;
+    }
+
     return school;
   }
 
@@ -447,6 +462,172 @@ export class SchoolsService {
       failed: rows.length - finalCreate.length,
       errors,
     };
+  }
+
+  // ─── CSV School Upload ──────────────────────────────────────────────────────
+
+  async uploadSchoolsCsv(buffer: Buffer): Promise<{
+    created: number;
+    failed: number;
+    errors: { row: number; name: string; reason: string }[];
+  }> {
+    const text = buffer.toString('utf8');
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+
+    if (lines.length < 2) {
+      throw new BadRequestException('CSV file must have a header row and at least one data row');
+    }
+
+    // ── Parse header ────────────────────────────────────────────────────────
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const requiredCols = ['name', 'slug', 'city', 'contactemail'];
+    for (const col of requiredCols) {
+      if (!headers.includes(col)) {
+        throw new BadRequestException(`CSV missing required column: "${col}"`);
+      }
+    }
+
+    const col = (row: string[], name: string) => {
+      const idx = headers.indexOf(name);
+      return idx !== -1 ? (row[idx] ?? '').trim() : '';
+    };
+
+    const errors: { row: number; name: string; reason: string }[] = [];
+    const toCreate: { rowNum: number; data: Record<string, any> }[] = [];
+    const slugsSeen = new Set<string>();
+
+    // ── Per-row validation ───────────────────────────────────────────────────
+    for (let i = 1; i < lines.length; i++) {
+      const parts = lines[i].split(',').map((p) => p.trim());
+      const rowNum = i; // 1-based (excluding header)
+
+      const name = col(parts, 'name');
+      const slug = col(parts, 'slug').toLowerCase();
+      const city = col(parts, 'city');
+      const contactEmail = col(parts, 'contactemail');
+      const description = col(parts, 'description') || null;
+      const contactPhone = col(parts, 'contactphone') || null;
+      const address = col(parts, 'address') || null;
+
+      if (!name || !slug || !city) {
+        errors.push({ row: rowNum, name: name || '(empty)', reason: 'name, slug and city are required' });
+        continue;
+      }
+
+      if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+        errors.push({ row: rowNum, name, reason: 'contactEmail is missing or invalid' });
+        continue;
+      }
+
+      if (slugsSeen.has(slug)) {
+        errors.push({ row: rowNum, name, reason: 'Duplicate slug within this CSV' });
+        continue;
+      }
+      slugsSeen.add(slug);
+
+      toCreate.push({
+        rowNum,
+        data: { name, slug, city, contactEmail, description, contactPhone, address },
+      });
+    }
+
+    if (toCreate.length === 0) {
+      return { created: 0, failed: lines.length - 1, errors };
+    }
+
+    // ── Check DB for already-existing slugs / emails ─────────────────────────
+    const [existingSlugs, existingEmails] = await Promise.all([
+      this.prisma.school.findMany({
+        where: { slug: { in: toCreate.map((r) => r.data.slug) } },
+        select: { slug: true },
+      }),
+      this.prisma.user.findMany({
+        where: { email: { in: toCreate.map((r) => r.data.contactEmail) } },
+        select: { email: true },
+      }),
+    ]);
+
+    const existingSlugSet = new Set(existingSlugs.map((s) => s.slug));
+    const existingEmailSet = new Set(existingEmails.map((u) => u.email));
+
+    const finalCreate = toCreate.filter((r) => {
+      if (existingSlugSet.has(r.data.slug)) {
+        errors.push({ row: r.rowNum, name: r.data.name, reason: 'Slug already exists in database' });
+        return false;
+      }
+      if (existingEmailSet.has(r.data.contactEmail)) {
+        errors.push({ row: r.rowNum, name: r.data.name, reason: 'Admin email already in use' });
+        return false;
+      }
+      return true;
+    });
+
+    // ── Create each school in its own transaction ────────────────────────────
+    let created = 0;
+    for (const item of finalCreate) {
+      const { name, slug, city, contactEmail, description, contactPhone, address } = item.data;
+      const schoolCode = generateFormattedCode();
+      const tempPassword = crypto.randomBytes(10).toString('hex'); // 20-char hex
+      const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+          const deepLink = `${baseUrl}/v1/join/${schoolCode}`;
+
+          const school = await tx.school.create({
+            data: {
+              name,
+              slug,
+              city,
+              contactEmail,
+              description,
+              contactPhone,
+              address,
+              schoolCode,
+              deepLink,
+              tempAdminPassword: tempPassword, // stored plain-text — TIKIT_ADMIN only
+            },
+          });
+
+          const usernameBase = contactEmail.split('@')[0];
+          const uniqueSuffix = crypto.randomBytes(2).toString('hex');
+
+          await tx.user.create({
+            data: {
+              email: contactEmail,
+              username: `${usernameBase}_${uniqueSuffix}`,
+              displayName: `${name} Admin`,
+              password: hashedPassword,
+              role: 'KARORDFORANDE',
+              accountStatus: 'ACTIVE',
+              schoolId: school.id,
+              isVerified: true,
+              approvalStatus: 'approved',
+            },
+          });
+
+          await tx.communicationAllocation.create({
+            data: {
+              schoolId: school.id,
+              pushAllocated: 500,
+              emailAllocated: 500,
+              smsAllocated: 500,
+            },
+          });
+        });
+
+        created++;
+      } catch (err: any) {
+        errors.push({ row: item.rowNum, name, reason: err?.message ?? 'Unknown DB error' });
+      }
+    }
+
+    if (created > 0) {
+      await this.cache.delByPattern('schools:list:*');
+    }
+
+    return { created, failed: (lines.length - 1) - created, errors };
   }
 
   // ─── Individual Invite Codes ──────────────────────────────────────────────
