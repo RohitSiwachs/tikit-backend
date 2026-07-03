@@ -104,15 +104,15 @@ export class UsersController {
   @Get(':id/full-details')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Get complete 360-degree user details including private data, cards, and tickets' })
-  getFullDetails(@Param('id') id: string) {
-    return this.usersService.getFullDetails(id);
+  getFullDetails(@Param('id') id: string, @Request() req: any) {
+    return this.usersService.getFullDetails(id, req.user);
   }
 
   @Get(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Get user details' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req: any) {
+    return this.usersService.findOne(id, req.user);
   }
 
   @Patch(':id')

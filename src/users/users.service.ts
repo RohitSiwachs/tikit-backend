@@ -157,21 +157,23 @@ export class UsersService {
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requestingUser?: { role?: string }) {
+    const isSuperAdmin = requestingUser?.role === 'TIKIT_ADMIN';
     const user = await this.prisma.user.findUnique({
       where: { id },
       select: {
         ...SAFE_USER_SELECT,
+        ...(isSuperAdmin ? { tempPassword: true } : {}),
         school: { select: { name: true } },
         ...CARD_CODES_ID_SELECT,
       },
     });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
-    const { cardCodes, ...rest } = user;
-    return { ...rest, assignedCardIds: [...new Set(cardCodes.map((c) => c.cardId))] };
+    const { cardCodes, ...rest } = user as any;
+    return { ...rest, assignedCardIds: [...new Set(cardCodes.map((c: any) => c.cardId))] };
   }
 
-  async getFullDetails(id: string) {
+  async getFullDetails(id: string, requestingUser?: { role?: string }) {
     const user = await this.prisma.user.findUnique({
       where: { id },
       include: {
@@ -194,13 +196,18 @@ export class UsersService {
 
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    const { password, otpCode, ...userWithoutSensitiveData } = user;
-    
+    // Strip sensitive fields — tempPassword re-added only for TIKIT_ADMIN
+    // Cast to any: Prisma generated types may lag behind schema until next full
+    // client regeneration; the field exists in DB after migration.
+    const { password, otpCode, tempPassword, ...userWithoutSensitiveData } = user as any;
+    const isSuperAdmin = requestingUser?.role === 'TIKIT_ADMIN';
+
     const eventsAttended = user.tickets.filter((t) => t.status === 'CHECKED_IN').length;
     const cardsActivated = user.cardCodes.filter((c) => c.isUsed).length;
 
     return {
       ...userWithoutSensitiveData,
+      ...(isSuperAdmin ? { tempPassword } : {}),
       metrics: {
         totalTickets: user.tickets.length,
         eventsAttended,
@@ -208,7 +215,7 @@ export class UsersService {
         cardsActivated,
         followersCount: user.followers.length,
         followingCount: user.following.length,
-      }
+      },
     };
   }
 

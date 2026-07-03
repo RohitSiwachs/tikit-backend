@@ -290,6 +290,7 @@ export class SchoolsService {
           className: s.className,
           schoolId,
           password: hashedPassword,
+          tempPassword,          // persist plain-text — TIKIT_ADMIN only via GET /users/:id
           approvalStatus: 'pending',
           role: 'STUDENT',
         };
