@@ -5,7 +5,7 @@ buildCommand = "npm run build"
 [deploy]
 startCommand = "npm run start:prod"
 releaseCommand = "npx prisma migrate deploy"
-healthcheckPath = "/"
+healthcheckPath = "/v1/health"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
