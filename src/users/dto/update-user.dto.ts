@@ -72,13 +72,19 @@ export class AdminUpdateUserDto {
   @IsString()
   className?: string;
 
-  @ApiProperty({ required: false, description: 'ID of the school to assign the user to' })
+  @ApiProperty({
+    required: false,
+    description: 'ID of the school to assign the user to',
+  })
   @IsOptional()
   @IsString()
   schoolId?: string;
 
   // ── Personal details ───────────────────────────────────────────────────────
-  @ApiProperty({ required: false, enum: ['male', 'female', 'other', 'prefer_not_to_say'] })
+  @ApiProperty({
+    required: false,
+    enum: ['male', 'female', 'other', 'prefer_not_to_say'],
+  })
   @IsOptional()
   @IsString()
   gender?: string;

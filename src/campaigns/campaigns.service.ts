@@ -34,7 +34,9 @@ async function getExpoModule() {
 @Injectable()
 export class CampaignsService {
   private readonly logger = new Logger(CampaignsService.name);
-  private expo: InstanceType<(typeof import('expo-server-sdk'))['Expo']> | null = null;
+  private expo: InstanceType<
+    (typeof import('expo-server-sdk'))['Expo']
+  > | null = null;
 
   private async getExpo() {
     if (!this.expo) {
@@ -63,12 +65,18 @@ export class CampaignsService {
         throw new ForbiddenException('School admin must belong to a school');
       }
       const existingFilters = (data.segmentFilters as any) ?? {};
-      if (existingFilters.schoolId && existingFilters.schoolId !== requestingUser.schoolId) {
+      if (
+        existingFilters.schoolId &&
+        existingFilters.schoolId !== requestingUser.schoolId
+      ) {
         throw new ForbiddenException(
           'You can only create campaigns targeting your own school',
         );
       }
-      data.segmentFilters = { ...existingFilters, schoolId: requestingUser.schoolId };
+      data.segmentFilters = {
+        ...existingFilters,
+        schoolId: requestingUser.schoolId,
+      };
     }
 
     return this.prisma.campaign.create({ data });
@@ -121,7 +129,8 @@ export class CampaignsService {
     }
 
     // Quota check — throws 409 if school has no remaining quota for this channel
-    const schoolId = (campaign.segmentFilters as any)?.schoolId as string | undefined;
+    const schoolId = (campaign.segmentFilters as any)?.schoolId as
+      string | undefined;
     if (schoolId && ['push', 'email', 'sms'].includes(campaign.channel)) {
       await this.communicationUsageService.checkQuota(
         schoolId,
@@ -168,13 +177,17 @@ export class CampaignsService {
     if (filters.role) where.role = filters.role;
 
     // ── Consent flags ────────────────────────────────────────────────────────
-    if (filters.marketingOptIn !== undefined) where.marketingConsent = filters.marketingOptIn;
-    if (filters.partnerOptIn !== undefined) where.partnerConsent = filters.partnerOptIn;
+    if (filters.marketingOptIn !== undefined)
+      where.marketingConsent = filters.marketingOptIn;
+    if (filters.partnerOptIn !== undefined)
+      where.partnerConsent = filters.partnerOptIn;
 
     // ── Notification channel opt-in from segment filters ─────────────────────
     // Applied before channel enforcement; channel enforcement below always wins.
-    if (filters.pushEnabled !== undefined) where.notifPush = filters.pushEnabled;
-    if (filters.emailEnabled !== undefined) where.notifEmail = filters.emailEnabled;
+    if (filters.pushEnabled !== undefined)
+      where.notifPush = filters.pushEnabled;
+    if (filters.emailEnabled !== undefined)
+      where.notifEmail = filters.emailEnabled;
     if (filters.smsEnabled !== undefined) where.notifSms = filters.smsEnabled;
 
     // ── Age range ─────────────────────────────────────────────────────────────
@@ -186,14 +199,18 @@ export class CampaignsService {
 
     // ── Relation filters (collected into AND to avoid key collisions) ─────────
     if (filters.goingEventId) {
-      andConditions.push({ tickets: { some: { eventId: filters.goingEventId } } });
+      andConditions.push({
+        tickets: { some: { eventId: filters.goingEventId } },
+      });
     }
     if (filters.cardId) {
       andConditions.push({ cardCodes: { some: { cardId: filters.cardId } } });
     }
     if (filters.fetchedTicketEventId) {
       andConditions.push({
-        tickets: { some: { eventId: filters.fetchedTicketEventId, status: 'ISSUED' } },
+        tickets: {
+          some: { eventId: filters.fetchedTicketEventId, status: 'ISSUED' },
+        },
       });
     }
 
@@ -246,11 +263,27 @@ export class CampaignsService {
 
       // Increment usage only on full success — do NOT track if campaign failed
       const schoolId = filters.schoolId as string | undefined;
-      if (schoolId && totalSent > 0 && ['push', 'email', 'sms'].includes(campaign.channel)) {
+      if (
+        schoolId &&
+        totalSent > 0 &&
+        ['push', 'email', 'sms'].includes(campaign.channel)
+      ) {
         const channel = campaign.channel as Channel;
-        if (channel === 'push') await this.communicationUsageService.incrementPushUsage(schoolId, totalSent);
-        else if (channel === 'email') await this.communicationUsageService.incrementEmailUsage(schoolId, totalSent);
-        else if (channel === 'sms') await this.communicationUsageService.incrementSmsUsage(schoolId, totalSent);
+        if (channel === 'push')
+          await this.communicationUsageService.incrementPushUsage(
+            schoolId,
+            totalSent,
+          );
+        else if (channel === 'email')
+          await this.communicationUsageService.incrementEmailUsage(
+            schoolId,
+            totalSent,
+          );
+        else if (channel === 'sms')
+          await this.communicationUsageService.incrementSmsUsage(
+            schoolId,
+            totalSent,
+          );
       }
 
       this.logger.log(`Campaign ${id} sent to ${totalSent} recipients`);

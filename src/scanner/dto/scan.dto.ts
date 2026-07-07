@@ -3,7 +3,8 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class ScanDto {
   @ApiProperty({
-    description: 'The QR token or card code to scan. Tokens prefixed with "qr_" are treated as tickets; all others as card codes.',
+    description:
+      'The QR token or card code to scan. Tokens prefixed with "qr_" are treated as tickets; all others as card codes.',
     example: 'qr_abc123xyz',
   })
   @IsString()
@@ -11,7 +12,8 @@ export class ScanDto {
   qrToken: string;
 
   @ApiProperty({
-    description: 'If true, only verifies the ticket validity without performing a check-in. Defaults to false.',
+    description:
+      'If true, only verifies the ticket validity without performing a check-in. Defaults to false.',
     example: false,
     required: false,
     default: false,

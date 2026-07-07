@@ -128,7 +128,11 @@ export class EmailsService {
         <p style="font-size:12px;color:#999;">The TiKit Team</p>
       </div>
     `;
-    return this.sendEmail(email, `You received a new card: ${cardTitle} 💳`, html);
+    return this.sendEmail(
+      email,
+      `You received a new card: ${cardTitle} 💳`,
+      html,
+    );
   }
 
   async sendCampaignEmail(to: string, subject: string, body: string) {

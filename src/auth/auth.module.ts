@@ -19,17 +19,16 @@ import { SmsModule } from '../sms/sms.module';
 
     JwtModule.registerAsync({
       inject: [ConfigService],
- useFactory: (config: ConfigService) => {
-
-  return {
-    privateKey: config.get('jwt.privateKey'),
-    publicKey: config.get('jwt.publicKey'),
-    signOptions: {
-      expiresIn: config.get('jwt.accessExpiration') || '15m',
-      algorithm: 'RS256',
-    },
-  };
-},
+      useFactory: (config: ConfigService) => {
+        return {
+          privateKey: config.get('jwt.privateKey'),
+          publicKey: config.get('jwt.publicKey'),
+          signOptions: {
+            expiresIn: config.get('jwt.accessExpiration') || '15m',
+            algorithm: 'RS256',
+          },
+        };
+      },
     }),
   ],
   controllers: [AuthController],

@@ -19,7 +19,7 @@ export class NotificationsProcessor extends WorkerHost {
     job: Job<SendNotificationJobData>,
   ): Promise<{ sent: number; failed: number }> {
     const { tokens, title, body, data } = job.data;
-    
+
     const { Expo } = await import('expo-server-sdk');
     const expo = new Expo({
       accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,

@@ -27,7 +27,8 @@ export class ScannerController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Scan successful — returns ticket or card details with status.',
+    description:
+      'Scan successful — returns ticket or card details with status.',
     schema: {
       oneOf: [
         {
@@ -36,7 +37,11 @@ export class ScannerController {
             type: { type: 'string', example: 'TICKET' },
             message: { type: 'string', example: 'Check-in successful' },
             isCheckedIn: { type: 'boolean', example: true },
-            checkedInAt: { type: 'string', format: 'date-time', nullable: true },
+            checkedInAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+            },
             ticket: {
               type: 'object',
               properties: {
@@ -85,21 +90,35 @@ export class ScannerController {
           type: 'object',
           properties: {
             type: { type: 'string', example: 'CARD' },
-            message: { type: 'string', example: 'Card code is valid and ready to be activated' },
+            message: {
+              type: 'string',
+              example: 'Card code is valid and ready to be activated',
+            },
             cardTitle: { type: 'string' },
             cardBenefits: { type: 'string', nullable: true },
             validUntil: { type: 'string', format: 'date-time' },
             isActivated: { type: 'boolean' },
-            activatedAt: { type: 'string', format: 'date-time', nullable: true },
+            activatedAt: {
+              type: 'string',
+              format: 'date-time',
+              nullable: true,
+            },
             user: { type: 'object', nullable: true },
           },
         },
       ],
     },
   })
-  @ApiResponse({ status: 400, description: 'Bad request — QR token missing, ticket already checked in, event cancelled/ended, ticket voided, or card blocked/paused/expired.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad request — QR token missing, ticket already checked in, event cancelled/ended, ticket voided, or card blocked/paused/expired.',
+  })
   @ApiResponse({ status: 404, description: 'QR token or card code not found.' })
-  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid JWT.' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized — missing or invalid JWT.',
+  })
   scan(@Body() dto: ScanDto) {
     return this.scannerService.scan(dto.qrToken, !!dto.verifyOnly);
   }
@@ -108,23 +127,43 @@ export class ScannerController {
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
   @ApiOperation({
     summary: 'Get scan/attendance stats for an event',
-    description: 'Returns the total ticket count, checked-in count, remaining entries, and occupancy rate for the given event.',
+    description:
+      'Returns the total ticket count, checked-in count, remaining entries, and occupancy rate for the given event.',
   })
-  @ApiParam({ name: 'eventId', description: 'UUID of the event', type: 'string' })
+  @ApiParam({
+    name: 'eventId',
+    description: 'UUID of the event',
+    type: 'string',
+  })
   @ApiResponse({
     status: 200,
     description: 'Event scan statistics.',
     schema: {
       type: 'object',
       properties: {
-        scannedCount: { type: 'number', description: 'Number of tickets already checked in' },
-        remainingEntries: { type: 'number', description: 'Tickets still waiting to be scanned' },
-        totalCapacity: { type: 'number', description: 'Total non-voided tickets' },
-        occupancyRate: { type: 'number', description: 'Percentage of checked-in tickets (0–100)' },
+        scannedCount: {
+          type: 'number',
+          description: 'Number of tickets already checked in',
+        },
+        remainingEntries: {
+          type: 'number',
+          description: 'Tickets still waiting to be scanned',
+        },
+        totalCapacity: {
+          type: 'number',
+          description: 'Total non-voided tickets',
+        },
+        occupancyRate: {
+          type: 'number',
+          description: 'Percentage of checked-in tickets (0–100)',
+        },
       },
     },
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid JWT.' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized — missing or invalid JWT.',
+  })
   getStats(@Param('eventId') eventId: string) {
     return this.scannerService.getEventStats(eventId);
   }

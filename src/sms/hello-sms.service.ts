@@ -11,7 +11,9 @@ export class HelloSmsService implements ISmsService {
     const password = process.env.HELLOSMS_PASSWORD;
 
     if (!username || !password) {
-      this.logger.error('HELLOSMS_USERNAME or HELLOSMS_PASSWORD is not configured');
+      this.logger.error(
+        'HELLOSMS_USERNAME or HELLOSMS_PASSWORD is not configured',
+      );
       throw new Error('HelloSMS credentials are not configured');
     }
 
@@ -22,7 +24,7 @@ export class HelloSmsService implements ISmsService {
       const response = await fetch('https://api.hellosms.se/v1/sms/send', {
         method: 'POST',
         headers: {
-          'Authorization': `Basic ${auth}`,
+          Authorization: `Basic ${auth}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -34,7 +36,9 @@ export class HelloSmsService implements ISmsService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        this.logger.error(`HelloSMS API failed: ${response.status} ${errorText}`);
+        this.logger.error(
+          `HelloSMS API failed: ${response.status} ${errorText}`,
+        );
         throw new Error('Failed to send SMS via HelloSMS');
       }
 

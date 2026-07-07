@@ -1,5 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor, RequestMethod } from '@nestjs/common';
+import {
+  ValidationPipe,
+  ClassSerializerInterceptor,
+  RequestMethod,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';

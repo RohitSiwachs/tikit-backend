@@ -13,7 +13,9 @@ interface ThrottlerStorageRecord {
 }
 
 @Injectable()
-export class RedisThrottlerStorage implements ThrottlerStorage, OnModuleDestroy {
+export class RedisThrottlerStorage
+  implements ThrottlerStorage, OnModuleDestroy
+{
   private readonly logger = new Logger(RedisThrottlerStorage.name);
   private readonly redis: Redis;
 

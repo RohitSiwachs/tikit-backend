@@ -232,7 +232,9 @@ export class AuthService {
 
     // ── Shared school code (existing flow with new controls) ─────────────────
     if (schoolCode) {
-      const school = await this.prisma.school.findUnique({ where: { schoolCode } });
+      const school = await this.prisma.school.findUnique({
+        where: { schoolCode },
+      });
       if (!school) throw new BadRequestException('Invalid school code');
 
       if (!school.sharedCodeEnabled)
@@ -243,19 +245,24 @@ export class AuthService {
         school.sharedCodeMaxRedemptions !== null &&
         school.sharedCodeRedemptionCount >= school.sharedCodeMaxRedemptions
       )
-        throw new BadRequestException('This school code has reached its maximum number of uses');
+        throw new BadRequestException(
+          'This school code has reached its maximum number of uses',
+        );
 
       finalSchoolId = school.id;
-      finalApprovalStatus = school.sharedCodeApprovalRequired ? 'pending' : 'approved';
+      finalApprovalStatus = school.sharedCodeApprovalRequired
+        ? 'pending'
+        : 'approved';
       joinedViaCode = true;
 
-    // ── Individual invite code (new flow) ────────────────────────────────────
+      // ── Individual invite code (new flow) ────────────────────────────────────
     } else if (inviteCode) {
       const invite = await this.prisma.schoolInviteCode.findUnique({
         where: { code: inviteCode.toUpperCase() },
       });
       if (!invite) throw new BadRequestException('Invalid invite code');
-      if (invite.isUsed) throw new BadRequestException('Invite code has already been used');
+      if (invite.isUsed)
+        throw new BadRequestException('Invite code has already been used');
       if (invite.expiresAt && invite.expiresAt < new Date())
         throw new BadRequestException('Invite code has expired');
 
@@ -264,9 +271,11 @@ export class AuthService {
       joinedViaCode = true;
       redeemedInviteCodeId = invite.id;
 
-    // ── Direct school join by ID — requires manual admin approval ────────────
+      // ── Direct school join by ID — requires manual admin approval ────────────
     } else if (schoolId) {
-      const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
+      const school = await this.prisma.school.findUnique({
+        where: { id: schoolId },
+      });
       if (!school) throw new BadRequestException('Invalid school ID');
       finalSchoolId = school.id;
       finalApprovalStatus = 'pending';
@@ -277,7 +286,8 @@ export class AuthService {
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ email: dto.email }, { username: dto.username }] },
     });
-    if (existing) throw new BadRequestException('Email or username already taken');
+    if (existing)
+      throw new BadRequestException('Email or username already taken');
 
     const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
@@ -298,7 +308,9 @@ export class AuthService {
     const sideEffects: Promise<any>[] = [
       this.emailsService
         .sendWelcomeEmail(user.email, user.displayName)
-        .catch((err) => this.logger.error('Failed to send welcome email', err.stack)),
+        .catch((err) =>
+          this.logger.error('Failed to send welcome email', err.stack),
+        ),
     ];
 
     if (schoolCode && finalSchoolId) {

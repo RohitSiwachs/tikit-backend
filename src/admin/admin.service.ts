@@ -55,10 +55,16 @@ export class AdminService {
         schoolName: s.name,
         pushAllocated: a?.pushAllocated ?? 0,
         pushUsed: a?.pushUsed ?? 0,
-        pushRemaining: Math.max(0, (a?.pushAllocated ?? 0) - (a?.pushUsed ?? 0)),
+        pushRemaining: Math.max(
+          0,
+          (a?.pushAllocated ?? 0) - (a?.pushUsed ?? 0),
+        ),
         emailAllocated: a?.emailAllocated ?? 0,
         emailUsed: a?.emailUsed ?? 0,
-        emailRemaining: Math.max(0, (a?.emailAllocated ?? 0) - (a?.emailUsed ?? 0)),
+        emailRemaining: Math.max(
+          0,
+          (a?.emailAllocated ?? 0) - (a?.emailUsed ?? 0),
+        ),
         smsAllocated: a?.smsAllocated ?? 0,
         smsUsed: a?.smsUsed ?? 0,
         smsRemaining: Math.max(0, (a?.smsAllocated ?? 0) - (a?.smsUsed ?? 0)),
@@ -97,12 +103,15 @@ export class AdminService {
     schoolId: string,
     dto: UpdateCommunicationAllocationDto,
   ) {
-    const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
+    const school = await this.prisma.school.findUnique({
+      where: { id: schoolId },
+    });
     if (!school) throw new NotFoundException(`School ${schoolId} not found`);
 
     const data: any = {};
     if (dto.pushAllocated !== undefined) data.pushAllocated = dto.pushAllocated;
-    if (dto.emailAllocated !== undefined) data.emailAllocated = dto.emailAllocated;
+    if (dto.emailAllocated !== undefined)
+      data.emailAllocated = dto.emailAllocated;
     if (dto.smsAllocated !== undefined) data.smsAllocated = dto.smsAllocated;
     if (dto.pushUsed !== undefined) data.pushUsed = dto.pushUsed;
     if (dto.emailUsed !== undefined) data.emailUsed = dto.emailUsed;

@@ -30,7 +30,10 @@ export class NotificationsService {
       if (!requestingUser.schoolId) {
         throw new ForbiddenException('School admin must belong to a school');
       }
-      if (segmentFilters.schoolId && segmentFilters.schoolId !== requestingUser.schoolId) {
+      if (
+        segmentFilters.schoolId &&
+        segmentFilters.schoolId !== requestingUser.schoolId
+      ) {
         throw new ForbiddenException(
           'You can only send notifications to students in your own school',
         );
@@ -83,13 +86,14 @@ export class NotificationsService {
     // Check for a notification copy override before dispatching.
     // If schoolId + eventId (from segmentFilters) + triggerKey are all present,
     // the persisted override title/body replaces the caller-supplied defaults.
-    const { title, body } = await this.notificationTriggersService.resolveContent(
-      segmentFilters.schoolId,
-      segmentFilters.eventId,
-      dto.triggerKey,
-      dto.title,
-      dto.body,
-    );
+    const { title, body } =
+      await this.notificationTriggersService.resolveContent(
+        segmentFilters.schoolId,
+        segmentFilters.eventId,
+        dto.triggerKey,
+        dto.title,
+        dto.body,
+      );
 
     const jobData: SendNotificationJobData = {
       tokens: validTokens,

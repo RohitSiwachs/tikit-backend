@@ -100,8 +100,7 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { event_id: string },
   ) {
     const user = (client as any).user as
-      | { id: string; role: string }
-      | undefined;
+      { id: string; role: string } | undefined;
 
     if (!user?.id) {
       client.disconnect(true);

@@ -19,7 +19,13 @@ import type { Response } from 'express';
 import { SchoolsService } from './schools.service';
 import { CreateSchoolDto } from './dto/create-school.dto';
 import { UpdateSchoolDto } from './dto/update-school.dto';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+} from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Role } from '../prisma-enums';
@@ -30,7 +36,10 @@ import {
 } from './dto/school-actions.dto';
 import { CreateClassDto, UpdateClassDto } from './dto/classes.dto';
 import { BulkCreateSchoolsDto } from './dto/bulk-create-school.dto';
-import { GenerateIndividualCodesDto, RedeemIndividualCodeDto } from './dto/invite-code.dto';
+import {
+  GenerateIndividualCodesDto,
+  RedeemIndividualCodeDto,
+} from './dto/invite-code.dto';
 
 @ApiTags('schools')
 @ApiBearerAuth()
@@ -48,7 +57,8 @@ export class SchoolsController {
   @Post('bulk')
   @Roles(Role.TIKIT_ADMIN)
   @ApiOperation({
-    summary: 'Bulk-create schools (Admin only). Validates every row, skips invalid/duplicate slugs, returns created/failed/errors.',
+    summary:
+      'Bulk-create schools (Admin only). Validates every row, skips invalid/duplicate slugs, returns created/failed/errors.',
   })
   @ApiBody({ type: BulkCreateSchoolsDto })
   bulkCreate(@Body() body: BulkCreateSchoolsDto) {
@@ -59,7 +69,8 @@ export class SchoolsController {
   @Roles(Role.TIKIT_ADMIN)
   @UseInterceptors(FileInterceptor('file'))
   @ApiOperation({
-    summary: 'Upload schools from a CSV file (TIKIT_ADMIN only). Creates school + admin user + communication allocation per row.',
+    summary:
+      'Upload schools from a CSV file (TIKIT_ADMIN only). Creates school + admin user + communication allocation per row.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -69,7 +80,8 @@ export class SchoolsController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'CSV file. Required columns: name, slug, city, contactEmail. Optional: description, contactPhone, address',
+          description:
+            'CSV file. Required columns: name, slug, city, contactEmail. Optional: description, contactPhone, address',
         },
       },
       required: ['file'],
@@ -77,7 +89,9 @@ export class SchoolsController {
   })
   async uploadSchoolsCsv(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
-      throw new BadRequestException('No file uploaded. Send a multipart/form-data request with field name "file"');
+      throw new BadRequestException(
+        'No file uploaded. Send a multipart/form-data request with field name "file"',
+      );
     }
     if (!file.originalname.endsWith('.csv') && file.mimetype !== 'text/csv') {
       throw new BadRequestException('Only .csv files are accepted');
@@ -88,7 +102,10 @@ export class SchoolsController {
   // Must be before /:id routes to avoid routing conflict
   @Post('redeem-individual-code')
   @Roles(Role.STUDENT)
-  @ApiOperation({ summary: 'Redeem an individual invite code — links student to school (auto-approved)' })
+  @ApiOperation({
+    summary:
+      'Redeem an individual invite code — links student to school (auto-approved)',
+  })
   @ApiBody({ type: RedeemIndividualCodeDto })
   redeemIndividualCode(
     @Body() body: RedeemIndividualCodeDto,
@@ -99,7 +116,9 @@ export class SchoolsController {
 
   @Get('public')
   @Public()
-  @ApiOperation({ summary: 'List all schools publicly with pagination and search' })
+  @ApiOperation({
+    summary: 'List all schools publicly with pagination and search',
+  })
   findAllPublic(
     @Query('search') search?: string,
     @Query('city') city?: string,
@@ -131,7 +150,10 @@ export class SchoolsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get school details by ID. tempAdminPassword visible to TIKIT_ADMIN only.' })
+  @ApiOperation({
+    summary:
+      'Get school details by ID. tempAdminPassword visible to TIKIT_ADMIN only.',
+  })
   findOne(@Param('id') id: string, @Request() req: any) {
     return this.schoolsService.findOne(id, req.user?.role);
   }
@@ -177,7 +199,9 @@ export class SchoolsController {
 
   @Post(':id/individual-codes')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Generate individual invite codes for a school (1–500)' })
+  @ApiOperation({
+    summary: 'Generate individual invite codes for a school (1–500)',
+  })
   @ApiBody({ type: GenerateIndividualCodesDto })
   generateIndividualCodes(
     @Param('id') id: string,
@@ -192,7 +216,9 @@ export class SchoolsController {
 
   @Get(':id/individual-codes')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'List individual invite codes for a school (paginated)' })
+  @ApiOperation({
+    summary: 'List individual invite codes for a school (paginated)',
+  })
   listIndividualCodes(
     @Param('id') id: string,
     @Request() req: any,
@@ -211,7 +237,9 @@ export class SchoolsController {
 
   @Post(':id/individual-codes/export')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Export all individual invite codes as a CSV download' })
+  @ApiOperation({
+    summary: 'Export all individual invite codes as a CSV download',
+  })
   async exportIndividualCodes(
     @Param('id') id: string,
     @Request() req: any,
@@ -278,12 +306,11 @@ export class SchoolsController {
   @Get(':id/classes')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Get all classes for a school, including students' })
-  getClasses(
-    @Param('id') id: string,
-    @Request() req: any,
-  ) {
+  getClasses(@Param('id') id: string, @Request() req: any) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
-      throw new ForbiddenException('You can only view classes for your own school');
+      throw new ForbiddenException(
+        'You can only view classes for your own school',
+      );
     }
     return this.schoolsService.getClasses(id);
   }

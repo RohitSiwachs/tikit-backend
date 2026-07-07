@@ -99,7 +99,9 @@ export class CardsController {
 
   @Get(':id/assigned-users')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'View all users assigned this card (activated or pending)' })
+  @ApiOperation({
+    summary: 'View all users assigned this card (activated or pending)',
+  })
   getAssignedUsers(@Param('id') id: string) {
     return this.cardsService.getAssignedUsers(id);
   }

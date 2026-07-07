@@ -39,8 +39,7 @@ function formatPost(post: any, userId?: string) {
   );
 
   // Determine user's vote (filter by userId returns at most 1 element)
-  const userVotedOptionId =
-    pollVotes.length > 0 ? pollVotes[0].optionId : null;
+  const userVotedOptionId = pollVotes.length > 0 ? pollVotes[0].optionId : null;
 
   const options = pollOptions.map((opt) => {
     const votesCount = opt._count?.votes || 0;
@@ -97,14 +96,23 @@ export class PostsService {
         throw new BadRequestException('Countdown posts must have a title');
       }
       if (!createPostDto.eventDateTime) {
-        throw new BadRequestException('Countdown posts must have an eventDateTime');
+        throw new BadRequestException(
+          'Countdown posts must have an eventDateTime',
+        );
       }
       const eventDateTime = new Date(createPostDto.eventDateTime);
       if (isNaN(eventDateTime.getTime()) || eventDateTime <= new Date()) {
-        throw new BadRequestException('eventDateTime must be a valid date in the future');
+        throw new BadRequestException(
+          'eventDateTime must be a valid date in the future',
+        );
       }
 
-      const { pollOptions: _p, pollExpiresAt: _pe, scheduledAt: _s, ...postData } = createPostDto;
+      const {
+        pollOptions: _p,
+        pollExpiresAt: _pe,
+        scheduledAt: _s,
+        ...postData
+      } = createPostDto;
       const post = await this.prisma.post.create({
         data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
         include: { author: { select: POST_AUTHOR_SELECT } },
@@ -116,7 +124,9 @@ export class PostsService {
 
     if (createPostDto.postType === PostType.POLL) {
       if (!createPostDto.pollOptions || createPostDto.pollOptions.length < 2) {
-        throw new BadRequestException('Poll posts must have at least 2 options');
+        throw new BadRequestException(
+          'Poll posts must have at least 2 options',
+        );
       }
       if (!createPostDto.pollExpiresAt) {
         throw new BadRequestException(
@@ -130,7 +140,12 @@ export class PostsService {
         );
       }
 
-      const { pollOptions, pollExpiresAt, scheduledAt: _, ...postData } = createPostDto;
+      const {
+        pollOptions,
+        pollExpiresAt,
+        scheduledAt: _,
+        ...postData
+      } = createPostDto;
       const post = await this.prisma.post.create({
         data: {
           ...postData,
@@ -155,7 +170,12 @@ export class PostsService {
       return formatPost(post, authorId);
     }
 
-    const { pollOptions: __, pollExpiresAt: ___, scheduledAt: ____, ...postData } = createPostDto;
+    const {
+      pollOptions: __,
+      pollExpiresAt: ___,
+      scheduledAt: ____,
+      ...postData
+    } = createPostDto;
     const post = await this.prisma.post.create({
       data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
       include: { author: { select: POST_AUTHOR_SELECT } },
@@ -219,9 +239,13 @@ export class PostsService {
       });
       const optionToPostId: Record<string, string> = {};
       raw.posts.forEach((p) =>
-        p.pollOptions?.forEach((o: any) => { optionToPostId[o.id] = p.id; }),
+        p.pollOptions?.forEach((o: any) => {
+          optionToPostId[o.id] = p.id;
+        }),
       );
-      votes.forEach((v) => { voteByPostId[optionToPostId[v.optionId]] = v.optionId; });
+      votes.forEach((v) => {
+        voteByPostId[optionToPostId[v.optionId]] = v.optionId;
+      });
     }
 
     const postsWithVotes = raw.posts.map((p) => ({
@@ -231,7 +255,12 @@ export class PostsService {
 
     return {
       data: postsWithVotes.map((post) => formatPost(post, userId)),
-      meta: { total: raw.total, page, limit, totalPages: Math.ceil(raw.total / limit) },
+      meta: {
+        total: raw.total,
+        page,
+        limit,
+        totalPages: Math.ceil(raw.total / limit),
+      },
     };
   }
 
@@ -285,9 +314,13 @@ export class PostsService {
       });
       const optionToPostId: Record<string, string> = {};
       raw.posts.forEach((p) =>
-        p.pollOptions?.forEach((o: any) => { optionToPostId[o.id] = p.id; }),
+        p.pollOptions?.forEach((o: any) => {
+          optionToPostId[o.id] = p.id;
+        }),
       );
-      votes.forEach((v) => { voteByPostId[optionToPostId[v.optionId]] = v.optionId; });
+      votes.forEach((v) => {
+        voteByPostId[optionToPostId[v.optionId]] = v.optionId;
+      });
     }
 
     return raw.posts
@@ -331,31 +364,36 @@ export class PostsService {
     return formatPost({ ...rawPost, pollVotes }, userId);
   }
 
-  async update(
-    id: string,
-    updatePostDto: UpdatePostDto,
-    user: any,
-  ) {
+  async update(id: string, updatePostDto: UpdatePostDto, user: any) {
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: {
         event: {
-          include: { connectedSchools: { select: { id: true } } }
-        }
-      }
+          include: { connectedSchools: { select: { id: true } } },
+        },
+      },
     });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
-    
+
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
     const isSchoolAdmin = user.role === 'KARORDFORANDE';
-    
+
     const isEventHostSchool = post.event?.schoolId === user.schoolId;
-    const isEventConnectedSchool = post.event?.connectedSchools.some(s => s.id === user.schoolId);
-    
-    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && (post.schoolId === user.schoolId || isEventHostSchool || isEventConnectedSchool));
+    const isEventConnectedSchool = post.event?.connectedSchools.some(
+      (s) => s.id === user.schoolId,
+    );
+
+    const hasAdminRights =
+      isSuperAdmin ||
+      (isSchoolAdmin &&
+        (post.schoolId === user.schoolId ||
+          isEventHostSchool ||
+          isEventConnectedSchool));
 
     if (!hasAdminRights && post.authorId !== user.id) {
-      throw new ForbiddenException('You can only edit your own posts or posts in your school/event');
+      throw new ForbiddenException(
+        'You can only edit your own posts or posts in your school/event',
+      );
     }
 
     const { pollOptions: _, pollExpiresAt: __, ...updateData } = updatePostDto;
@@ -386,9 +424,9 @@ export class PostsService {
       where: { id },
       include: {
         event: {
-          include: { connectedSchools: { select: { id: true } } }
-        }
-      }
+          include: { connectedSchools: { select: { id: true } } },
+        },
+      },
     });
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
 
@@ -396,12 +434,21 @@ export class PostsService {
     const isSchoolAdmin = user.role === 'KARORDFORANDE';
 
     const isEventHostSchool = post.event?.schoolId === user.schoolId;
-    const isEventConnectedSchool = post.event?.connectedSchools.some(s => s.id === user.schoolId);
+    const isEventConnectedSchool = post.event?.connectedSchools.some(
+      (s) => s.id === user.schoolId,
+    );
 
-    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && (post.schoolId === user.schoolId || isEventHostSchool || isEventConnectedSchool));
+    const hasAdminRights =
+      isSuperAdmin ||
+      (isSchoolAdmin &&
+        (post.schoolId === user.schoolId ||
+          isEventHostSchool ||
+          isEventConnectedSchool));
 
     if (!hasAdminRights && post.authorId !== user.id) {
-      throw new ForbiddenException('You can only delete your own posts or posts in your school/event');
+      throw new ForbiddenException(
+        'You can only delete your own posts or posts in your school/event',
+      );
     }
 
     const result = await this.prisma.post.delete({ where: { id } });
@@ -452,22 +499,23 @@ export class PostsService {
     });
   }
 
-  async deleteComment(
-    commentId: string,
-    user: any,
-  ) {
+  async deleteComment(commentId: string, user: any) {
     const comment = await this.prisma.postComment.findUnique({
       where: { id: commentId },
-      include: { post: true }
+      include: { post: true },
     });
     if (!comment) throw new NotFoundException('Comment not found');
 
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
     const isSchoolAdmin = user.role === 'KARORDFORANDE';
-    const hasAdminRights = isSuperAdmin || (isSchoolAdmin && comment.post.schoolId === user.schoolId);
+    const hasAdminRights =
+      isSuperAdmin ||
+      (isSchoolAdmin && comment.post.schoolId === user.schoolId);
 
     if (!hasAdminRights && comment.authorId !== user.id) {
-      throw new ForbiddenException('You can only delete your own comments or comments in your school');
+      throw new ForbiddenException(
+        'You can only delete your own comments or comments in your school',
+      );
     }
 
     return this.prisma.postComment.delete({ where: { id: commentId } });

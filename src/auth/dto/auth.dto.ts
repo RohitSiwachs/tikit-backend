@@ -56,12 +56,16 @@ export class RegisterDto {
   @IsString()
   schoolCode?: string;
 
-  @ApiPropertyOptional({ description: 'Join by school ID — requires admin approval' })
+  @ApiPropertyOptional({
+    description: 'Join by school ID — requires admin approval',
+  })
   @IsOptional()
   @IsString()
   schoolId?: string;
 
-  @ApiPropertyOptional({ description: 'Individual invite code — auto-approves and links to school' })
+  @ApiPropertyOptional({
+    description: 'Individual invite code — auto-approves and links to school',
+  })
   @IsOptional()
   @IsString()
   @Validate(AtMostOneSchoolFieldConstraint, {

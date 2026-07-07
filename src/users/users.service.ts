@@ -27,9 +27,10 @@ const SAFE_USER_SELECT = {
 } as const;
 
 // Picks only the cardId from each CardCode row so callers can build assignedCardIds
-const CARD_CODES_ID_SELECT = { cardCodes: { select: { cardId: true } } } as const;
+const CARD_CODES_ID_SELECT = {
+  cardCodes: { select: { cardId: true } },
+} as const;
 import { UpdateProfileDto } from './dto/update-profile.dto';
-
 
 @Injectable()
 export class UsersService {
@@ -136,7 +137,12 @@ export class UsersService {
 
   async getManualApprovals(schoolId: string) {
     return this.prisma.user.findMany({
-      where: { schoolId, approvalStatus: 'approved', joinedViaCode: false, role: 'STUDENT' },
+      where: {
+        schoolId,
+        approvalStatus: 'approved',
+        joinedViaCode: false,
+        role: 'STUDENT',
+      },
       select: SAFE_USER_SELECT,
       orderBy: { createdAt: 'desc' },
     });
@@ -146,8 +152,13 @@ export class UsersService {
     const targetUser = await this.prisma.user.findUnique({ where: { id } });
     if (!targetUser) throw new NotFoundException(`User ${id} not found`);
 
-    if (requestingUser.role !== 'TIKIT_ADMIN' && targetUser.schoolId !== requestingUser.schoolId) {
-      throw new ConflictException('You can only update students from your own school');
+    if (
+      requestingUser.role !== 'TIKIT_ADMIN' &&
+      targetUser.schoolId !== requestingUser.schoolId
+    ) {
+      throw new ConflictException(
+        'You can only update students from your own school',
+      );
     }
 
     return this.prisma.user.update({
@@ -170,7 +181,10 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
     const { cardCodes, ...rest } = user as any;
-    return { ...rest, assignedCardIds: [...new Set(cardCodes.map((c: any) => c.cardId))] };
+    return {
+      ...rest,
+      assignedCardIds: [...new Set(cardCodes.map((c: any) => c.cardId))],
+    };
   }
 
   async getFullDetails(id: string, requestingUser?: { role?: string }) {
@@ -199,10 +213,13 @@ export class UsersService {
     // Strip sensitive fields — tempPassword re-added only for TIKIT_ADMIN
     // Cast to any: Prisma generated types may lag behind schema until next full
     // client regeneration; the field exists in DB after migration.
-    const { password, otpCode, tempPassword, ...userWithoutSensitiveData } = user as any;
+    const { password, otpCode, tempPassword, ...userWithoutSensitiveData } =
+      user as any;
     const isSuperAdmin = requestingUser?.role === 'TIKIT_ADMIN';
 
-    const eventsAttended = user.tickets.filter((t) => t.status === 'CHECKED_IN').length;
+    const eventsAttended = user.tickets.filter(
+      (t) => t.status === 'CHECKED_IN',
+    ).length;
     const cardsActivated = user.cardCodes.filter((c) => c.isUsed).length;
 
     return {
@@ -636,8 +653,6 @@ export class UsersService {
       cards: user.cardCodes,
     };
   }
-
-
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

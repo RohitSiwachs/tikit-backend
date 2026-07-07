@@ -43,7 +43,7 @@ export class AdminController {
     @Request() req: any,
   ) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== schoolId) {
-      throw new ForbiddenException('You can only view your own school\'s usage');
+      throw new ForbiddenException("You can only view your own school's usage");
     }
     return this.adminService.getSchoolCommunicationUsage(schoolId);
   }

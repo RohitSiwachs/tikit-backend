@@ -35,9 +35,7 @@ export class CommunicationUsageService {
     // allocated = 0 means the channel is BLOCKED (no quota granted).
     // used >= allocated catches the exhausted case for allocated > 0.
     if (used >= allocated) {
-      throw new ConflictException(
-        `School has insufficient ${channel} quota.`,
-      );
+      throw new ConflictException(`School has insufficient ${channel} quota.`);
     }
   }
 

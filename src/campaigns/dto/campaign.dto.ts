@@ -16,32 +16,58 @@ export class CampaignSegmentFiltersDto {
   @ApiPropertyOptional() @IsOptional() @IsString() className?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() gender?: string;
 
-  @ApiPropertyOptional({ description: 'Filter to users with marketingConsent=true' })
-  @IsOptional() @IsBoolean() marketingOptIn?: boolean;
+  @ApiPropertyOptional({
+    description: 'Filter to users with marketingConsent=true',
+  })
+  @IsOptional()
+  @IsBoolean()
+  marketingOptIn?: boolean;
 
-  @ApiPropertyOptional({ description: 'Filter to users with partnerConsent=true' })
-  @IsOptional() @IsBoolean() partnerOptIn?: boolean;
+  @ApiPropertyOptional({
+    description: 'Filter to users with partnerConsent=true',
+  })
+  @IsOptional()
+  @IsBoolean()
+  partnerOptIn?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter to users with notifPush=true' })
-  @IsOptional() @IsBoolean() pushEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  pushEnabled?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter to users with notifEmail=true' })
-  @IsOptional() @IsBoolean() emailEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  emailEnabled?: boolean;
 
   @ApiPropertyOptional({ description: 'Filter to users with notifSms=true' })
-  @IsOptional() @IsBoolean() smsEnabled?: boolean;
+  @IsOptional()
+  @IsBoolean()
+  smsEnabled?: boolean;
 
   @ApiPropertyOptional() @IsOptional() @IsNumber() minAge?: number;
   @ApiPropertyOptional() @IsOptional() @IsNumber() maxAge?: number;
 
-  @ApiPropertyOptional({ description: 'Users who have any ticket for this eventId' })
-  @IsOptional() @IsString() goingEventId?: string;
+  @ApiPropertyOptional({
+    description: 'Users who have any ticket for this eventId',
+  })
+  @IsOptional()
+  @IsString()
+  goingEventId?: string;
 
-  @ApiPropertyOptional({ description: 'Users who have a CardCode for this cardId' })
-  @IsOptional() @IsString() cardId?: string;
+  @ApiPropertyOptional({
+    description: 'Users who have a CardCode for this cardId',
+  })
+  @IsOptional()
+  @IsString()
+  cardId?: string;
 
-  @ApiPropertyOptional({ description: 'Users who have an ISSUED ticket for this eventId' })
-  @IsOptional() @IsString() fetchedTicketEventId?: string;
+  @ApiPropertyOptional({
+    description: 'Users who have an ISSUED ticket for this eventId',
+  })
+  @IsOptional()
+  @IsString()
+  fetchedTicketEventId?: string;
 }
 
 export class CreateCampaignDto {

@@ -169,11 +169,19 @@ export class SchoolsService {
     return school;
   }
 
-  async update(id: string, updateSchoolDto: UpdateSchoolDto, callerRole?: string) {
+  async update(
+    id: string,
+    updateSchoolDto: UpdateSchoolDto,
+    callerRole?: string,
+  ) {
     const {
       schoolCode,
-      pushAllocated, emailAllocated, smsAllocated,
-      pushPrice, emailPrice, smsPrice,
+      pushAllocated,
+      emailAllocated,
+      smsAllocated,
+      pushPrice,
+      emailPrice,
+      smsPrice,
       cardLimit,
       ...schoolData
     } = updateSchoolDto as any;
@@ -195,16 +203,16 @@ export class SchoolsService {
     // Communication limits are TIKIT_ADMIN-only — silently ignored for other roles
     if (callerRole === 'TIKIT_ADMIN') {
       const alloc: Record<string, number> = {};
-      if (pushAllocated  !== undefined) alloc.pushAllocated  = pushAllocated;
+      if (pushAllocated !== undefined) alloc.pushAllocated = pushAllocated;
       if (emailAllocated !== undefined) alloc.emailAllocated = emailAllocated;
-      if (smsAllocated   !== undefined) alloc.smsAllocated   = smsAllocated;
-      if (pushPrice      !== undefined) alloc.pushPrice      = pushPrice;
-      if (emailPrice     !== undefined) alloc.emailPrice     = emailPrice;
-      if (smsPrice       !== undefined) alloc.smsPrice       = smsPrice;
+      if (smsAllocated !== undefined) alloc.smsAllocated = smsAllocated;
+      if (pushPrice !== undefined) alloc.pushPrice = pushPrice;
+      if (emailPrice !== undefined) alloc.emailPrice = emailPrice;
+      if (smsPrice !== undefined) alloc.smsPrice = smsPrice;
 
       if (Object.keys(alloc).length > 0) {
         await this.prisma.communicationAllocation.upsert({
-          where:  { schoolId: id },
+          where: { schoolId: id },
           create: { schoolId: id, ...alloc },
           update: alloc,
         });
@@ -290,7 +298,7 @@ export class SchoolsService {
           className: s.className,
           schoolId,
           password: hashedPassword,
-          tempPassword,          // persist plain-text — TIKIT_ADMIN only via GET /users/:id
+          tempPassword, // persist plain-text — TIKIT_ADMIN only via GET /users/:id
           approvalStatus: 'pending',
           role: 'STUDENT',
         };
@@ -358,7 +366,9 @@ export class SchoolsService {
     // Send assignment emails in the background
     Promise.allSettled(
       students.map((student) => {
-        const studentCode = codesToCreate.find((c) => c.userId === student.id)?.code;
+        const studentCode = codesToCreate.find(
+          (c) => c.userId === student.id,
+        )?.code;
         if (student.email && studentCode) {
           return this.emailsService.sendCardAssignedEmail(
             student.email,
@@ -368,7 +378,7 @@ export class SchoolsService {
           );
         }
         return Promise.resolve();
-      })
+      }),
     ).catch((err) => {
       console.error('Error sending card assignment emails:', err);
     });
@@ -395,14 +405,22 @@ export class SchoolsService {
       const rowNum = i + 1;
 
       if (!row.name?.trim() || !row.slug?.trim() || !row.city?.trim()) {
-        errors.push({ row: rowNum, slug: row.slug ?? '', reason: 'name, slug and city are required' });
+        errors.push({
+          row: rowNum,
+          slug: row.slug ?? '',
+          reason: 'name, slug and city are required',
+        });
         continue;
       }
 
       const slug = row.slug.trim().toLowerCase();
 
       if (slugsSeen.has(slug)) {
-        errors.push({ row: rowNum, slug, reason: 'Duplicate slug within request' });
+        errors.push({
+          row: rowNum,
+          slug,
+          reason: 'Duplicate slug within request',
+        });
         continue;
       }
       slugsSeen.add(slug);
@@ -435,7 +453,11 @@ export class SchoolsService {
 
     const finalCreate = toCreate.filter((r) => {
       if (existingSet.has(r.data.slug)) {
-        errors.push({ row: r.idx, slug: r.data.slug, reason: 'Slug already exists in database' });
+        errors.push({
+          row: r.idx,
+          slug: r.data.slug,
+          reason: 'Slug already exists in database',
+        });
         return false;
       }
       return true;
@@ -476,7 +498,9 @@ export class SchoolsService {
     const lines = text.split(/\r?\n/).filter((l) => l.trim());
 
     if (lines.length < 2) {
-      throw new BadRequestException('CSV file must have a header row and at least one data row');
+      throw new BadRequestException(
+        'CSV file must have a header row and at least one data row',
+      );
     }
 
     // ── Parse header ────────────────────────────────────────────────────────
@@ -511,24 +535,44 @@ export class SchoolsService {
       const address = col(parts, 'address') || null;
 
       if (!name || !slug || !city) {
-        errors.push({ row: rowNum, name: name || '(empty)', reason: 'name, slug and city are required' });
+        errors.push({
+          row: rowNum,
+          name: name || '(empty)',
+          reason: 'name, slug and city are required',
+        });
         continue;
       }
 
       if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-        errors.push({ row: rowNum, name, reason: 'contactEmail is missing or invalid' });
+        errors.push({
+          row: rowNum,
+          name,
+          reason: 'contactEmail is missing or invalid',
+        });
         continue;
       }
 
       if (slugsSeen.has(slug)) {
-        errors.push({ row: rowNum, name, reason: 'Duplicate slug within this CSV' });
+        errors.push({
+          row: rowNum,
+          name,
+          reason: 'Duplicate slug within this CSV',
+        });
         continue;
       }
       slugsSeen.add(slug);
 
       toCreate.push({
         rowNum,
-        data: { name, slug, city, contactEmail, description, contactPhone, address },
+        data: {
+          name,
+          slug,
+          city,
+          contactEmail,
+          description,
+          contactPhone,
+          address,
+        },
       });
     }
 
@@ -553,11 +597,19 @@ export class SchoolsService {
 
     const finalCreate = toCreate.filter((r) => {
       if (existingSlugSet.has(r.data.slug)) {
-        errors.push({ row: r.rowNum, name: r.data.name, reason: 'Slug already exists in database' });
+        errors.push({
+          row: r.rowNum,
+          name: r.data.name,
+          reason: 'Slug already exists in database',
+        });
         return false;
       }
       if (existingEmailSet.has(r.data.contactEmail)) {
-        errors.push({ row: r.rowNum, name: r.data.name, reason: 'Admin email already in use' });
+        errors.push({
+          row: r.rowNum,
+          name: r.data.name,
+          reason: 'Admin email already in use',
+        });
         return false;
       }
       return true;
@@ -566,14 +618,24 @@ export class SchoolsService {
     // ── Create each school in its own transaction ────────────────────────────
     let created = 0;
     for (const item of finalCreate) {
-      const { name, slug, city, contactEmail, description, contactPhone, address } = item.data;
+      const {
+        name,
+        slug,
+        city,
+        contactEmail,
+        description,
+        contactPhone,
+        address,
+      } = item.data;
       const schoolCode = generateFormattedCode();
       const tempPassword = crypto.randomBytes(10).toString('hex'); // 20-char hex
       const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
       try {
         await this.prisma.$transaction(async (tx) => {
-          const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+          const baseUrl =
+            process.env.BASE_URL ||
+            `http://localhost:${process.env.PORT || 3000}`;
           const deepLink = `${baseUrl}/v1/join/${schoolCode}`;
 
           const school = await tx.school.create({
@@ -620,7 +682,11 @@ export class SchoolsService {
 
         created++;
       } catch (err: any) {
-        errors.push({ row: item.rowNum, name, reason: err?.message ?? 'Unknown DB error' });
+        errors.push({
+          row: item.rowNum,
+          name,
+          reason: err?.message ?? 'Unknown DB error',
+        });
       }
     }
 
@@ -628,7 +694,7 @@ export class SchoolsService {
       await this.cache.delByPattern('schools:list:*');
     }
 
-    return { created, failed: (lines.length - 1) - created, errors };
+    return { created, failed: lines.length - 1 - created, errors };
   }
 
   // ─── Individual Invite Codes ──────────────────────────────────────────────
@@ -644,7 +710,9 @@ export class SchoolsService {
     if (!school) throw new NotFoundException(`School ${schoolId} not found`);
 
     if (!dto.codes || dto.codes.length === 0) {
-      throw new BadRequestException('You must provide an array of codes to create.');
+      throw new BadRequestException(
+        'You must provide an array of codes to create.',
+      );
     }
 
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : null;
@@ -695,7 +763,8 @@ export class SchoolsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const header = 'code,studentName,studentEmail,isUsed,usedAt,expiresAt,createdAt';
+    const header =
+      'code,studentName,studentEmail,isUsed,usedAt,expiresAt,createdAt';
     const rows = codes.map((c) =>
       [
         c.code,
@@ -722,7 +791,8 @@ export class SchoolsService {
     });
 
     if (!invite) throw new NotFoundException('Invite code not found');
-    if (invite.isUsed) throw new BadRequestException('This invite code has already been used');
+    if (invite.isUsed)
+      throw new BadRequestException('This invite code has already been used');
     if (invite.expiresAt && invite.expiresAt < new Date()) {
       throw new BadRequestException('This invite code has expired');
     }
@@ -749,7 +819,11 @@ export class SchoolsService {
 
       await tx.user.update({
         where: { id: userId },
-        data: { schoolId: invite.schoolId, approvalStatus: 'approved', joinedViaCode: true },
+        data: {
+          schoolId: invite.schoolId,
+          approvalStatus: 'approved',
+          joinedViaCode: true,
+        },
       });
     });
 
@@ -794,13 +868,18 @@ export class SchoolsService {
     return classData;
   }
 
-  async createClass(schoolId: string, dto: { className: string; graduationYear: number }) {
+  async createClass(
+    schoolId: string,
+    dto: { className: string; graduationYear: number },
+  ) {
     const existing = await this.prisma.class.findFirst({
       where: { schoolId, className: dto.className },
     });
 
     if (existing) {
-      throw new BadRequestException(`Class ${dto.className} already exists in this school.`);
+      throw new BadRequestException(
+        `Class ${dto.className} already exists in this school.`,
+      );
     }
 
     return this.prisma.class.create({
@@ -812,7 +891,11 @@ export class SchoolsService {
     });
   }
 
-  async updateClass(schoolId: string, classId: string, dto: { className?: string; graduationYear?: number }) {
+  async updateClass(
+    schoolId: string,
+    classId: string,
+    dto: { className?: string; graduationYear?: number },
+  ) {
     const existing = await this.prisma.class.findFirst({
       where: { id: classId, schoolId },
     });
@@ -826,7 +909,9 @@ export class SchoolsService {
         where: { schoolId, className: dto.className },
       });
       if (nameTaken) {
-        throw new BadRequestException(`Class name ${dto.className} is already taken.`);
+        throw new BadRequestException(
+          `Class name ${dto.className} is already taken.`,
+        );
       }
 
       // If we rename the class, we should also update the className for all students in this class

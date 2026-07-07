@@ -127,7 +127,10 @@ describe('External Event Blocking (integration)', () => {
         admin.id,
       );
 
-      const result = await vouchersService.redeem({ code: voucher.code }, student.id);
+      const result = await vouchersService.redeem(
+        { code: voucher.code },
+        student.id,
+      );
 
       expect(result.ticket).toBeDefined();
       expect(result.ticket.status).toBe('ISSUED');
@@ -151,9 +154,7 @@ describe('External Event Blocking (integration)', () => {
           externalEvent.id,
           externalTicketType.id,
         ),
-      ).rejects.toThrow(
-        /purchased through the external ticket provider/i,
-      );
+      ).rejects.toThrow(/purchased through the external ticket provider/i);
     });
 
     it('claimFreeTicket creates NO ticket row for an external event', async () => {
@@ -208,9 +209,7 @@ describe('External Event Blocking (integration)', () => {
 
       await expect(
         vouchersService.redeem({ code: rawVoucher.code }, student.id),
-      ).rejects.toThrow(
-        /cannot be redeemed through TiKit/i,
-      );
+      ).rejects.toThrow(/cannot be redeemed through TiKit/i);
     });
 
     it('voucher redemption creates NO ticket row for an external event voucher', async () => {

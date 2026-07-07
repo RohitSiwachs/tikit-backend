@@ -45,7 +45,6 @@ export class CreateSchoolDto {
   @IsUrl()
   websiteUrl?: string;
 
-
   @ApiProperty()
   @IsNotEmpty()
   @IsEmail()

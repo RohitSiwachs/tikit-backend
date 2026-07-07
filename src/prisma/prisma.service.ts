@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 // Queries slower than this threshold are logged as warnings in production.
@@ -24,9 +29,11 @@ export class PrismaService
 
     // Slow query warning: fires for every query that exceeds the threshold.
     // The query text is truncated in production logs to avoid leaking user data.
-    (this as unknown as PrismaClient & {
-      $on(event: 'query', cb: (e: Prisma.QueryEvent) => void): void;
-    }).$on('query', (e: Prisma.QueryEvent) => {
+    (
+      this as unknown as PrismaClient & {
+        $on(event: 'query', cb: (e: Prisma.QueryEvent) => void): void;
+      }
+    ).$on('query', (e: Prisma.QueryEvent) => {
       if (e.duration >= SLOW_QUERY_THRESHOLD_MS) {
         this.logger.warn(
           `Slow query (${e.duration}ms): ${e.query.slice(0, 200)}`,

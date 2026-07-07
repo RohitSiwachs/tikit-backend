@@ -65,16 +65,30 @@ export class UsersController {
   @Get('pending-approvals')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Get all users pending approval for the school' })
-  getPendingApprovals(@Request() req: any, @Query('schoolId') schoolId?: string) {
-    const targetSchoolId = req.user.role === Role.TIKIT_ADMIN && schoolId ? schoolId : req.user.schoolId;
+  getPendingApprovals(
+    @Request() req: any,
+    @Query('schoolId') schoolId?: string,
+  ) {
+    const targetSchoolId =
+      req.user.role === Role.TIKIT_ADMIN && schoolId
+        ? schoolId
+        : req.user.schoolId;
     return this.usersService.getPendingApprovals(targetSchoolId);
   }
 
   @Get('manual-approvals')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Get all approved users who joined without a school code' })
-  getManualApprovals(@Request() req: any, @Query('schoolId') schoolId?: string) {
-    const targetSchoolId = req.user.role === Role.TIKIT_ADMIN && schoolId ? schoolId : req.user.schoolId;
+  @ApiOperation({
+    summary: 'Get all approved users who joined without a school code',
+  })
+  getManualApprovals(
+    @Request() req: any,
+    @Query('schoolId') schoolId?: string,
+  ) {
+    const targetSchoolId =
+      req.user.role === Role.TIKIT_ADMIN && schoolId
+        ? schoolId
+        : req.user.schoolId;
     return this.usersService.getManualApprovals(targetSchoolId);
   }
 
@@ -103,7 +117,10 @@ export class UsersController {
 
   @Get(':id/full-details')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
-  @ApiOperation({ summary: 'Get complete 360-degree user details including private data, cards, and tickets' })
+  @ApiOperation({
+    summary:
+      'Get complete 360-degree user details including private data, cards, and tickets',
+  })
   getFullDetails(@Param('id') id: string, @Request() req: any) {
     return this.usersService.getFullDetails(id, req.user);
   }
@@ -177,8 +194,6 @@ export class UsersController {
       status,
     );
   }
-
-
 
   @Patch('profile')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)

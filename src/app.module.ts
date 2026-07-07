@@ -118,7 +118,7 @@ import { CacheModule } from './cache/cache.module';
           {
             name: 'default',
             ttl: 60000, // 1 minute window
-            limit: 60,  // 60 requests per minute (general)
+            limit: 60, // 60 requests per minute (general)
           },
         ],
         storage,

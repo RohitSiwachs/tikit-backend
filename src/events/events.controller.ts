@@ -104,16 +104,12 @@ export class EventsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.eventsService.getAttendees(
-      id,
-      req.user.role,
-      {
-        search,
-        status,
-        page: page ? parseInt(page) : undefined,
-        limit: limit ? parseInt(limit) : undefined,
-      },
-    );
+    return this.eventsService.getAttendees(id, req.user.role, {
+      search,
+      status,
+      page: page ? parseInt(page) : undefined,
+      limit: limit ? parseInt(limit) : undefined,
+    });
   }
 
   @Delete(':id')
@@ -388,7 +384,10 @@ export class EventsController {
 
   @Patch(':eventId/connections/:schoolId/publish')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
-  @ApiOperation({ summary: 'Publish event for a connected school — makes it visible to their students' })
+  @ApiOperation({
+    summary:
+      'Publish event for a connected school — makes it visible to their students',
+  })
   publishConnection(
     @Param('eventId') eventId: string,
     @Param('schoolId') schoolId: string,
@@ -405,7 +404,10 @@ export class EventsController {
 
   @Patch(':eventId/connections/:schoolId/unpublish')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
-  @ApiOperation({ summary: 'Unpublish event for a connected school — hides from their students' })
+  @ApiOperation({
+    summary:
+      'Unpublish event for a connected school — hides from their students',
+  })
   unpublishConnection(
     @Param('eventId') eventId: string,
     @Param('schoolId') schoolId: string,

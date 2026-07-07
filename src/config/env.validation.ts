@@ -3,9 +3,7 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   // FIX #5: required() — no default fallback so a missing NODE_ENV is a startup failure,
   // not a silent promotion to development mode (which would expose Swagger + open CORS).
-  NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test')
-    .required(),
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
   PORT: Joi.number().default(3000),
 
   // Database

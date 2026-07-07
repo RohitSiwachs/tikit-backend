@@ -21,7 +21,10 @@ export class SendNotificationDto {
   @IsObject()
   segmentFilters: SegmentFiltersDto;
 
-  @ApiPropertyOptional({ description: 'Trigger key used to look up a NotificationTriggerOverride, e.g. event_reminder_24h' })
+  @ApiPropertyOptional({
+    description:
+      'Trigger key used to look up a NotificationTriggerOverride, e.g. event_reminder_24h',
+  })
   @IsOptional()
   @IsString()
   triggerKey?: string;

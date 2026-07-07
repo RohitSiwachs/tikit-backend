@@ -8,7 +8,7 @@ import {
   Body,
   Request,
 } from '@nestjs/common';
-import { TicketsService } from './tickets.service' ;
+import { TicketsService } from './tickets.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
@@ -31,7 +31,7 @@ export class TicketsController {
       req.user.schoolId,
     );
   }
-// from here the get api starts
+  // from here the get api starts
   @Get()
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'List tickets (admin)' })

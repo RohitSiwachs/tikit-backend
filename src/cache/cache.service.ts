@@ -82,7 +82,9 @@ export class CacheService implements OnModuleDestroy {
         }
       } while (cursor !== '0');
     } catch (err: any) {
-      this.logger.warn(`[Cache] delByPattern("${pattern}") failed: ${err?.message}`);
+      this.logger.warn(
+        `[Cache] delByPattern("${pattern}") failed: ${err?.message}`,
+      );
     }
   }
 }

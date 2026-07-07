@@ -18,6 +18,7 @@ import {
 } from './dto/create-event.dto';
 import { CacheService } from '../cache/cache.service';
 import { CK, TTL } from '../cache/cache-keys';
+import { generateFormattedCode } from '../common/utils/code-generator';
 
 @Injectable()
 export class EventsService {
@@ -37,7 +38,12 @@ export class EventsService {
         'You can only create events for your own school',
       );
     }
-    const { ticketTypes, connectedSchools, scheduledAt: scheduledAtStr, ...eventData } = dto;
+    const {
+      ticketTypes,
+      connectedSchools,
+      scheduledAt: scheduledAtStr,
+      ...eventData
+    } = dto;
 
     // Validate scheduledAt if provided
     let scheduledAt: Date | undefined;
@@ -70,6 +76,7 @@ export class EventsService {
     const event = await this.prisma.event.create({
       data: {
         ...eventData,
+        id: generateFormattedCode(),
         startsAt: new Date(eventData.startsAt),
         endsAt: new Date(eventData.endsAt),
         scheduledAt: scheduledAt ?? null,
@@ -164,10 +171,7 @@ export class EventsService {
         },
         // Scheduled visibility
         {
-          OR: [
-            { scheduledAt: null },
-            { scheduledAt: { lte: new Date() } },
-          ],
+          OR: [{ scheduledAt: null }, { scheduledAt: { lte: new Date() } }],
         },
         // Card restriction: unrestricted events OR events whose required cards the student holds
         {
@@ -204,10 +208,7 @@ export class EventsService {
     // Enrich each event with the connected school's own publish state + ticket count
     const enriched = data.map((ev: any) => {
       const { connectionStates, ...rest } = ev;
-      if (
-        requestingUser?.schoolId &&
-        requestingUser.schoolId !== ev.schoolId
-      ) {
+      if (requestingUser?.schoolId && requestingUser.schoolId !== ev.schoolId) {
         const cs = connectionStates?.find(
           (s: any) => s.schoolId === requestingUser.schoolId,
         );
@@ -254,8 +255,12 @@ export class EventsService {
               where: { id },
               include: {
                 school: { select: { id: true, name: true, logoUrl: true } },
-                ticketTypes: { include: { connectionState: { select: { schoolId: true } } } },
-                connectedSchools: { select: { id: true, name: true, logoUrl: true } },
+                ticketTypes: {
+                  include: { connectionState: { select: { schoolId: true } } },
+                },
+                connectedSchools: {
+                  select: { id: true, name: true, logoUrl: true },
+                },
                 connectionRequests: {
                   select: {
                     id: true,
@@ -313,7 +318,7 @@ export class EventsService {
         event.eventType === 'INTERNAL' &&
         requestingUser.role === 'STUDENT' &&
         requestingUser.schoolId !== event.schoolId &&
-        !event.connectedSchools?.some(cs => cs.id === requestingUser.schoolId)
+        !event.connectedSchools?.some((cs) => cs.id === requestingUser.schoolId)
       ) {
         throw new ForbiddenException(
           'This event is not available for your school',
@@ -323,7 +328,10 @@ export class EventsService {
       // Card restriction: if enabled, student must hold one of the linked cards
       if (event.restrictToCardHolders && requestingUser.role === 'STUDENT') {
         const holdsCard = await this.prisma.cardCode.findFirst({
-          where: { userId: requestingUserId, cardId: { in: event.linkedCardIds } },
+          where: {
+            userId: requestingUserId,
+            cardId: { in: event.linkedCardIds },
+          },
         });
         if (!holdsCard) {
           throw new ForbiddenException(
@@ -412,7 +420,12 @@ export class EventsService {
     requestingSchoolId?: string | null,
   ) {
     await this.assertSchoolOwnership(id, requestingSchoolId ?? null);
-    const { ticketTypes, connectedSchools, scheduledAt: scheduledAtStr, ...updateData } = dto;
+    const {
+      ticketTypes,
+      connectedSchools,
+      scheduledAt: scheduledAtStr,
+      ...updateData
+    } = dto;
 
     // Validate cards if provided
     if (updateData.linkedCardIds?.length) {
@@ -434,7 +447,10 @@ export class EventsService {
         // Clear scheduling
         data.scheduledAt = null;
         // If the event was in scheduled status, revert to draft
-        const currentEvent = await this.prisma.event.findUnique({ where: { id }, select: { status: true } });
+        const currentEvent = await this.prisma.event.findUnique({
+          where: { id },
+          select: { status: true },
+        });
         if (currentEvent?.status === 'scheduled') {
           data.status = 'draft';
         }
@@ -621,6 +637,7 @@ export class EventsService {
     const event = await this.prisma.event.create({
       data: {
         ...eventData,
+        id: generateFormattedCode(),
         title: `${eventData.title} (Copy)`,
         isPublished: false,
         status: 'draft',
@@ -912,7 +929,9 @@ export class EventsService {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
       include: {
-        ticketTypes: { include: { connectionState: { select: { schoolId: true } } } },
+        ticketTypes: {
+          include: { connectionState: { select: { schoolId: true } } },
+        },
         connectedSchools: { select: { id: true } },
         connectionStates: true,
       },
@@ -1227,7 +1246,11 @@ export class EventsService {
 
     const tt = await this.prisma.ticketType.findUnique({
       where: { id: ticketTypeId },
-      select: { eventId: true, connectionStateId: true, event: { select: { eventType: true } } },
+      select: {
+        eventId: true,
+        connectionStateId: true,
+        event: { select: { eventType: true } },
+      },
     });
     if (!tt || tt.eventId !== eventId) {
       throw new NotFoundException('Ticket type not found for this event');

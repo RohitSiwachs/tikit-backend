@@ -27,7 +27,9 @@ export class CardsService {
     });
 
     if (currentCardsCount >= school.cardLimit) {
-      throw new BadRequestException(`Card limit reached. Your school can only create up to ${school.cardLimit} card(s).`);
+      throw new BadRequestException(
+        `Card limit reached. Your school can only create up to ${school.cardLimit} card(s).`,
+      );
     }
 
     return this.prisma.card.create({
@@ -139,7 +141,10 @@ export class CardsService {
   }
 
   async getAssignedUsers(cardId: string) {
-    const card = await this.prisma.card.findUnique({ where: { id: cardId }, select: { id: true } });
+    const card = await this.prisma.card.findUnique({
+      where: { id: cardId },
+      select: { id: true },
+    });
     if (!card) throw new NotFoundException(`Card with ID ${cardId} not found`);
 
     const codes = await this.prisma.cardCode.findMany({

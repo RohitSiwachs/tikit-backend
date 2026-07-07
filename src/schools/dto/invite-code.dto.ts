@@ -1,8 +1,17 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsArray,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GenerateIndividualCodesDto {
-  @ApiPropertyOptional({ description: 'List of individual invite codes provided from the frontend' })
+  @ApiPropertyOptional({
+    description: 'List of individual invite codes provided from the frontend',
+  })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -18,7 +27,9 @@ export class GenerateIndividualCodesDto {
   @IsString()
   studentEmail?: string;
 
-  @ApiPropertyOptional({ description: 'ISO date string — code expires at this datetime' })
+  @ApiPropertyOptional({
+    description: 'ISO date string — code expires at this datetime',
+  })
   @IsOptional()
   @IsString()
   expiresAt?: string;

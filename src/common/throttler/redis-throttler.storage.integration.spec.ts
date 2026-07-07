@@ -178,7 +178,13 @@ describe('RedisThrottlerStorage (integration)', () => {
       // The fresh instance has no in-process state — it only knows the Redis URL.
       const afterRestart = makeStorage();
       try {
-        const result = await afterRestart.increment(key, 60_000, 60, 0, 'default');
+        const result = await afterRestart.increment(
+          key,
+          60_000,
+          60,
+          0,
+          'default',
+        );
 
         // Must continue from 31, not restart at 1
         expect(result.totalHits).toBe(31);
@@ -306,8 +312,8 @@ describe('RedisThrottlerStorage (integration)', () => {
           'default',
         );
 
-        expect(result.totalHits).toBe(0);       // behaves as if no hits recorded
-        expect(result.isBlocked).toBe(false);   // request is allowed through
+        expect(result.totalHits).toBe(0); // behaves as if no hits recorded
+        expect(result.isBlocked).toBe(false); // request is allowed through
         expect(result.timeToExpire).toBeGreaterThan(0);
         expect(result.timeToBlockExpire).toBe(0);
       } finally {
@@ -378,7 +384,13 @@ describe('RedisThrottlerStorage (integration)', () => {
       }
 
       // Counter must be at 10 before the window expires
-      const beforeExpiry = await storage.increment(key, ttlMs, 100, 0, 'default');
+      const beforeExpiry = await storage.increment(
+        key,
+        ttlMs,
+        100,
+        0,
+        'default',
+      );
       expect(beforeExpiry.totalHits).toBe(11);
 
       // Wait past the TTL — Redis deletes the key automatically
@@ -389,7 +401,13 @@ describe('RedisThrottlerStorage (integration)', () => {
       expect(exists).toBe(0);
 
       // First request in the new window starts at 1, not 12
-      const afterExpiry = await storage.increment(key, ttlMs, 100, 0, 'default');
+      const afterExpiry = await storage.increment(
+        key,
+        ttlMs,
+        100,
+        0,
+        'default',
+      );
       expect(afterExpiry.totalHits).toBe(1);
       expect(afterExpiry.isBlocked).toBe(false);
     });
@@ -411,8 +429,8 @@ describe('RedisThrottlerStorage (integration)', () => {
       await wait(500);
       const pttl = await redis.pttl(`throttle:${key}`);
 
-      expect(pttl).toBeGreaterThan(0);   // key still exists (window not yet over)
-      expect(pttl).toBeLessThan(700);    // at most ~600 ms left — not reset to 1000 ms
+      expect(pttl).toBeGreaterThan(0); // key still exists (window not yet over)
+      expect(pttl).toBeLessThan(700); // at most ~600 ms left — not reset to 1000 ms
     });
 
     it('a new window starts cleanly — timeToExpire reflects the full TTL', async () => {
@@ -442,7 +460,13 @@ describe('RedisThrottlerStorage (integration)', () => {
         await storage.increment(key, ttlMs, limit, 0, 'default');
       }
 
-      const stillBlocked = await storage.increment(key, ttlMs, limit, 0, 'default');
+      const stillBlocked = await storage.increment(
+        key,
+        ttlMs,
+        limit,
+        0,
+        'default',
+      );
       expect(stillBlocked.isBlocked).toBe(true);
 
       // Wait for the window to expire
@@ -450,7 +474,13 @@ describe('RedisThrottlerStorage (integration)', () => {
 
       // The block was carried by the hit counter (no blockDuration, no block key).
       // After TTL expiry the hit counter is gone → new window starts unblocked.
-      const unblocked = await storage.increment(key, ttlMs, limit, 0, 'default');
+      const unblocked = await storage.increment(
+        key,
+        ttlMs,
+        limit,
+        0,
+        'default',
+      );
       expect(unblocked.totalHits).toBe(1);
       expect(unblocked.isBlocked).toBe(false);
     });

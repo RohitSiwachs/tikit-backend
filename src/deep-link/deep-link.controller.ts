@@ -11,7 +11,9 @@ export class DeepLinkController {
 
   @Get('join/:schoolCode')
   @Public()
-  @ApiOperation({ summary: 'Deep link redirect — opens app or shows landing page' })
+  @ApiOperation({
+    summary: 'Deep link redirect — opens app or shows landing page',
+  })
   async joinSchool(
     @Param('schoolCode') schoolCode: string,
     @Res() res: Response,

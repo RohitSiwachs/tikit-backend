@@ -23,7 +23,8 @@ export class AppController {
   @ApiOperation({ summary: 'Health check — verifies DB connectivity' })
   checkHealth() {
     return this.health.check([
-      () => this.prismaHealth.pingCheck('database', this.prisma, { timeout: 5000 }),
+      () =>
+        this.prismaHealth.pingCheck('database', this.prisma, { timeout: 5000 }),
     ]);
   }
 
@@ -33,8 +34,9 @@ export class AppController {
   getRoot() {
     return {
       statusCode: 200,
-      message: 'Welcome to TiKit Backend API 🚀. The server is up and running successfully!',
-      documentation: '/v1/docs'
+      message:
+        'Welcome to TiKit Backend API 🚀. The server is up and running successfully!',
+      documentation: '/v1/docs',
     };
   }
 }
