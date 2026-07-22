@@ -568,7 +568,9 @@ export class UsersService {
       });
     }
 
-    // Individual mode: generate a fresh code per user and bulk-insert.
+    // Individual mode: reuse the single pre-generated unused code that was
+    // created at card-creation time.  Do NOT mint a new code — that would
+    // create a second orphaned code on the card.
     const alreadyAssigned = await this.prisma.cardCode.findMany({
       where: { cardId, userId: { in: userIds } },
       select: { userId: true },
@@ -584,24 +586,39 @@ export class UsersService {
       };
     }
 
-    const codesToCreate = toAssign.map((userId) => ({
-      cardId,
-      userId,
-      code: generateFormattedCode(),
-      isUsed: false,
-      assignedAt: now,
-    }));
+    // Individual cards have exactly one pre-generated code (userId: null).
+    // Claim it by updating its userId/assignedAt in a transaction.
+    // A race-condition backstop: if no unused code is found mid-transaction,
+    // throw so that Prisma rolls back and the caller can retry.
+    return this.prisma.$transaction(async (tx) => {
+      let assigned = 0;
 
-    await this.prisma.cardCode.createMany({
-      data: codesToCreate,
-      skipDuplicates: true,
+      for (const userId of toAssign) {
+        const existing = await tx.cardCode.findFirst({
+          where: { cardId, userId: null, isUsed: false },
+          select: { id: true },
+        });
+
+        if (!existing) {
+          throw new BadRequestException(
+            `No unused code available for card ${cardId}. The card may not have a pre-generated code or it has already been assigned.`,
+          );
+        }
+
+        await tx.cardCode.update({
+          where: { id: existing.id },
+          data: { userId, assignedAt: now },
+        });
+
+        assigned++;
+      }
+
+      return {
+        message: `Card assigned to ${assigned} student(s). ${alreadyAssignedIds.size} already had this card.`,
+        assigned,
+        skipped: alreadyAssignedIds.size,
+      };
     });
-
-    return {
-      message: `Card assigned to ${toAssign.length} student(s). ${alreadyAssignedIds.size} already had this card.`,
-      assigned: toAssign.length,
-      skipped: alreadyAssignedIds.size,
-    };
   }
 
   async getEngagementData(userId: string) {
