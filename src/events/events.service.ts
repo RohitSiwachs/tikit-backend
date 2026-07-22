@@ -59,7 +59,7 @@ export class EventsService {
     // Internal events: all ticket types are always free
     const normalizedTicketTypes = ticketTypes.map((tt) =>
       dto.eventType === 'INTERNAL'
-        ? { ...tt, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        ? { ...tt, price: 0, priceDisplay: 'Free' }
         : { ...tt, price: tt.price ?? 0 },
     );
 
@@ -654,7 +654,7 @@ export class EventsService {
                     ...ttData,
                     price: 0,
                     priceDisplay: 'Free',
-                    freeForHostSchool: true,
+
                   }
                 : ttData;
             return {
@@ -760,7 +760,7 @@ export class EventsService {
     // Internal events: price is always 0 regardless of what the caller sends
     const data =
       event.eventType === 'INTERNAL'
-        ? { ...dto, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        ? { ...dto, price: 0, priceDisplay: 'Free' }
         : { ...dto, price: dto.price ?? 0 };
 
     const ticketType = await this.prisma.ticketType.create({
@@ -1213,7 +1213,7 @@ export class EventsService {
     // Internal events: price is always 0
     const data =
       event.eventType === 'INTERNAL'
-        ? { ...dto, price: 0, priceDisplay: 'Free', freeForHostSchool: true }
+        ? { ...dto, price: 0, priceDisplay: 'Free' }
         : { ...dto, price: dto.price ?? 0 };
 
     const ticketType = await this.prisma.ticketType.create({
@@ -1261,15 +1261,9 @@ export class EventsService {
       );
     }
 
-    // Internal events: freeForHostSchool must always remain true
-    const data =
-      tt.event.eventType === 'INTERNAL'
-        ? { ...dto, freeForHostSchool: true }
-        : dto;
-
     const result = await this.prisma.ticketType.update({
       where: { id: ticketTypeId },
-      data,
+      data: dto,
     });
 
     await this.invalidateEventCaches(eventId);

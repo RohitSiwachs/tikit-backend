@@ -62,10 +62,8 @@ export class TicketsService {
 
     const isHostSchoolStudent = userSchoolId && userSchoolId === event.schoolId;
 
-    // Eligibility: price===0 (always free) OR (freeForHostSchool AND host-school student)
-    const isFreeEligible =
-      ticketType.price === 0 ||
-      (ticketType.freeForHostSchool && isHostSchoolStudent);
+    // Eligibility: price===0 (always free)
+    const isFreeEligible = ticketType.price === 0;
 
     if (!isFreeEligible) {
       throw new BadRequestException(

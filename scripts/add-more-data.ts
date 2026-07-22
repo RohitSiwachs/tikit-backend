@@ -72,7 +72,7 @@ async function main() {
               quantityTotal: 500,
               quantityRemaining: 500,
               priceDisplay: ed.type === 'INTERNAL' ? '100 SEK' : '250 SEK',
-              freeForHostSchool: ed.type === 'INTERNAL', // Free for internal
+
             },
             {
               name: 'VIP',
@@ -81,7 +81,7 @@ async function main() {
               quantityTotal: 50,
               quantityRemaining: 50,
               priceDisplay: '500 SEK',
-              freeForHostSchool: false, // Never free
+
             }
           ]
         }

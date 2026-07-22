@@ -96,7 +96,7 @@ async function main() {
                 price: 0,
                 quantityTotal: 100,
                 quantityRemaining: 100,
-                freeForHostSchool: true,
+
               }
             ]
           }

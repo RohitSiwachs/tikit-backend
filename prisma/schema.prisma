@@ -222,7 +222,7 @@ model TicketType {
   quantityRemaining Int
   fewLeftThreshold  Int?    @default(10)
   isSoldOut         Boolean @default(false)
-  freeForHostSchool Boolean @default(false)
+
 
   // null = host school ticket, non-null = connected school ticket
   connectionStateId String?
