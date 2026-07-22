@@ -4,6 +4,15 @@ const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
+/** Generates a DDD-DDD-DDD-DDD numeric code (matches production format). */
+function generateCode() {
+  let digits = '';
+  for (let i = 0; i < 12; i++) {
+    digits += Math.floor(Math.random() * 10).toString();
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 9)}-${digits.slice(9, 12)}`;
+}
+
 async function main() {
   console.log('🌱 Seeding database with a massive amount of dummy data via raw SQL...');
 
@@ -90,11 +99,13 @@ async function main() {
           VALUES ('${cardId}', '${school.name} Card Level ${c}', '${school.id}', 'Exclusive benefits for level ${c}', ARRAY['Benefit A', 'Benefit B'], ${validFrom}, ${validUntil}, 'active');
         `);
 
-        // Generate 5 codes per card
+        // Generate 5 codes per card (each in DDD-DDD-DDD-DDD format)
         for (let codeIdx = 1; codeIdx <= 5; codeIdx++) {
+          const cardCodeId = crypto.randomUUID();
+          const cardCodeVal = generateCode();
           await prisma.$executeRawUnsafe(`
             INSERT INTO "CardCode" (id, "cardId", code, "isUsed")
-            VALUES ('${crypto.randomUUID()}', '${cardId}', 'CARD-${school.code}-${c}-${codeIdx}', false);
+            VALUES ('${cardCodeId}', '${cardId}', '${cardCodeVal}', false);
           `);
         }
         cardCount++;

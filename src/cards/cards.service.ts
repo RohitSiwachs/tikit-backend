@@ -6,7 +6,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardDto, UpdateCardDto } from './dto/card.dto';
 import * as crypto from 'crypto';
-import { generateFormattedCode } from '../common/utils/code-generator';
+import { generateFormattedCode, isValidCardCode } from '../common/utils/code-generator';
+
 
 @Injectable()
 export class CardsService {
@@ -234,6 +235,13 @@ export class CardsService {
   }
 
   async claimCard(userId: string, code: string) {
+    // Validate format up-front — reject anything that doesn't look like DDD-DDD-DDD-DDD
+    if (!isValidCardCode(code)) {
+      throw new BadRequestException(
+        'Invalid card code format. Expected format: 123-456-789-012',
+      );
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException(`User with ID ${userId} not found`);
 
