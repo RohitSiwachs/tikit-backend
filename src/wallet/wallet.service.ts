@@ -104,6 +104,53 @@ export class WalletService {
     };
   }
 
+  async getPendingCards(userId: string) {
+    const now = new Date();
+
+    const pendingCardCodes = await this.prisma.cardCode.findMany({
+      where: { userId, isUsed: false },
+      include: {
+        card: {
+          include: {
+            school: {
+              select: {
+                name: true,
+                slug: true,
+                schoolCode: true,
+                logoUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const formattedPendingCards = pendingCardCodes.map((code) => ({
+      id: code.id,
+      code: code.code,
+      assignedAt: code.assignedAt,
+      cardId: code.card.id,
+      title: code.card.title,
+      coverUrl: code.card.coverUrl,
+      benefits: code.card.benefits,
+      validFrom: code.card.validFrom,
+      validUntil: code.card.validUntil,
+      status: code.card.status,
+      school: code.card.school,
+      isExpired: code.card.validUntil < now || code.card.status === 'blocked',
+    }));
+
+    const message =
+      formattedPendingCards.length === 0
+        ? 'No pending cards assigned to you at the moment.'
+        : `You have ${formattedPendingCards.length} pending card(s) waiting to be activated.`;
+
+    return {
+      message,
+      pendingCards: formattedPendingCards,
+    };
+  }
+
   async activateCard(userId: string, code: string) {
     // Atomic activation: re-read inside transaction to prevent double-activation race
     const activatedCode = await this.prisma.$transaction(async (tx) => {

@@ -26,6 +26,15 @@ export class WalletController {
     return this.walletService.getWallet(req.user.id);
   }
 
+  @Get('pending')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({
+    summary: 'Get all cards assigned to the user that are pending activation',
+  })
+  getPendingCards(@Request() req: any) {
+    return this.walletService.getPendingCards(req.user.id);
+  }
+
   @Post('activate-card')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
   @ApiOperation({ summary: 'Activate a card using a unique code' })
