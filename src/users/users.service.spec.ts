@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 // ---------------------------------------------------------------------------
 // Prisma mock — every method used by assignCards() is listed here.
@@ -49,6 +50,7 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CacheService, useValue: { delByPattern: jest.fn() } },
       ],
     }).compile();
 

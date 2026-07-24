@@ -223,7 +223,51 @@ export class SchoolsService {
   }
 
   async remove(id: string) {
-    const school = await this.prisma.school.delete({ where: { id } });
+    const school = await this.prisma.$transaction(async (tx) => {
+      const schoolId = id;
+
+      // Delete school-level dependencies
+      await tx.class.deleteMany({ where: { schoolId } });
+      await tx.cardCode.deleteMany({ where: { card: { schoolId } } });
+      await tx.card.deleteMany({ where: { schoolId } });
+      
+      await tx.ticket.deleteMany({ where: { event: { schoolId } } });
+      await tx.voucher.deleteMany({ where: { event: { schoolId } } });
+      await tx.ticketType.deleteMany({ where: { event: { schoolId } } });
+      
+      await tx.eventConnectionRequest.deleteMany({ where: { OR: [{ requestingSchoolId: schoolId }, { event: { schoolId } }] } });
+      await tx.eventConnectionState.deleteMany({ where: { OR: [{ schoolId }, { event: { schoolId } }] } });
+      await tx.eventLike.deleteMany({ where: { event: { schoolId } } });
+      await tx.eventComment.deleteMany({ where: { event: { schoolId } } });
+      await tx.notificationTriggerOverride.deleteMany({ where: { schoolId } });
+      await tx.event.deleteMany({ where: { schoolId } });
+
+      await tx.pollVote.deleteMany({ where: { post: { schoolId } } });
+      await tx.pollOption.deleteMany({ where: { post: { schoolId } } });
+      await tx.postComment.deleteMany({ where: { post: { schoolId } } });
+      await tx.postLike.deleteMany({ where: { post: { schoolId } } });
+      await tx.post.deleteMany({ where: { schoolId } });
+      
+      await tx.communicationAllocation.deleteMany({ where: { schoolId } });
+      await tx.schoolInviteCode.deleteMany({ where: { schoolId } });
+
+      const schoolUsers = await tx.user.findMany({ where: { schoolId }, select: { id: true } });
+      const schoolUserIds = schoolUsers.map(u => u.id);
+      
+      if (schoolUserIds.length > 0) {
+        await tx.followRequest.deleteMany({ where: { OR: [{ senderId: { in: schoolUserIds } }, { receiverId: { in: schoolUserIds } }] } });
+        await tx.eventLike.deleteMany({ where: { userId: { in: schoolUserIds } } });
+        await tx.eventComment.deleteMany({ where: { userId: { in: schoolUserIds } } });
+        await tx.postLike.deleteMany({ where: { userId: { in: schoolUserIds } } });
+        await tx.postComment.deleteMany({ where: { authorId: { in: schoolUserIds } } });
+        await tx.pollVote.deleteMany({ where: { userId: { in: schoolUserIds } } });
+        await tx.refreshToken.deleteMany({ where: { userId: { in: schoolUserIds } } });
+        await tx.user.deleteMany({ where: { id: { in: schoolUserIds } } });
+      }
+      
+      return tx.school.delete({ where: { id: schoolId } });
+    }, { maxWait: 15000, timeout: 60000 });
+
     await Promise.all([
       this.cache.del(CK.school(id)),
       this.cache.delByPattern('schools:list:*'),

@@ -31,10 +31,14 @@ const CARD_CODES_ID_SELECT = {
   cardCodes: { select: { cardId: true } },
 } as const;
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { CacheService } from '../cache/cache.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cache: CacheService,
+  ) {}
 
   async findAll(query: {
     role?: Role;
@@ -250,7 +254,7 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. If deleting a SCHOOL_ADMIN, cascade delete the entire school
       if (user.role === 'SCHOOL_ADMIN' && user.schoolId) {
         const schoolId = user.schoolId;
@@ -317,6 +321,13 @@ export class UsersService {
       
       return tx.user.delete({ where: { id } });
     }, { maxWait: 15000, timeout: 60000 });
+
+    // Clear school cache if a school was potentially deleted
+    if (user.role === 'SCHOOL_ADMIN' && user.schoolId) {
+      this.cache.delByPattern('schools:list:*');
+    }
+
+    return result;
   }
 
   async getProfile(username: string, requestingUserId: string) {
