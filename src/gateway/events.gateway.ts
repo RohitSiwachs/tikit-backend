@@ -16,7 +16,7 @@ import { Role } from '../prisma-enums';
 // Roles that can join any event room regardless of ticket ownership
 const SCANNER_ROLES = new Set([
   Role.TIKIT_ADMIN,
-  Role.KARORDFORANDE,
+  Role.SCHOOL_ADMIN,
   Role.EVENTANSVARIG,
   Role.SCANNER,
 ]);

@@ -2,7 +2,7 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
 
-const ALLOWED_ROLES = ['TIKIT_ADMIN', 'KARORDFORANDE'];
+const ALLOWED_ROLES = ['TIKIT_ADMIN', 'SCHOOL_ADMIN'];
 
 @Injectable()
 export class BullBoardAuthMiddleware implements NestMiddleware {

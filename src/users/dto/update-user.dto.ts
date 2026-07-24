@@ -13,7 +13,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Role } from '../../prisma-enums';
 
 export class UpdateUserRoleDto {
-  @ApiProperty({ enum: ['TIKIT_ADMIN', 'KARORDFORANDE', 'STUDENT'] })
+  @ApiProperty({ enum: ['TIKIT_ADMIN', 'SCHOOL_ADMIN', 'STUDENT'] })
   @IsEnum(Role)
   role: Role;
 }

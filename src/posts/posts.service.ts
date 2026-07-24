@@ -376,7 +376,7 @@ export class PostsService {
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
 
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
-    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const isSchoolAdmin = user.role === 'SCHOOL_ADMIN';
 
     const isEventHostSchool = post.event?.schoolId === user.schoolId;
     const isEventConnectedSchool = post.event?.connectedSchools.some(
@@ -431,7 +431,7 @@ export class PostsService {
     if (!post) throw new NotFoundException(`Post with ID ${id} not found`);
 
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
-    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const isSchoolAdmin = user.role === 'SCHOOL_ADMIN';
 
     const isEventHostSchool = post.event?.schoolId === user.schoolId;
     const isEventConnectedSchool = post.event?.connectedSchools.some(
@@ -507,7 +507,7 @@ export class PostsService {
     if (!comment) throw new NotFoundException('Comment not found');
 
     const isSuperAdmin = user.role === 'TIKIT_ADMIN';
-    const isSchoolAdmin = user.role === 'KARORDFORANDE';
+    const isSchoolAdmin = user.role === 'SCHOOL_ADMIN';
     const hasAdminRights =
       isSuperAdmin ||
       (isSchoolAdmin && comment.post.schoolId === user.schoolId);

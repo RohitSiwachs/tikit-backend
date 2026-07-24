@@ -30,7 +30,7 @@ export class NotificationTriggersController {
   ) {}
 
   @Get(':eventId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'List all notification copy overrides for an event',
   })
@@ -39,7 +39,7 @@ export class NotificationTriggersController {
   }
 
   @Put(':eventId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'Create or update a notification copy override for an event',
   })
@@ -69,7 +69,7 @@ export class NotificationTriggersController {
   }
 
   @Delete(':eventId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Delete a notification copy override' })
   @ApiQuery({ name: 'triggerKey', required: true, type: String })
   @ApiQuery({

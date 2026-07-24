@@ -28,7 +28,7 @@ export class UpdateSchoolDto extends PartialType(
   @Min(0)
   cardLimit?: number;
 
-  // ── Communication limits (TIKIT_ADMIN only — ignored for KARORDFORANDE) ──
+  // ── Communication limits (TIKIT_ADMIN only — ignored for SCHOOL_ADMIN) ──
 
   @ApiProperty({
     required: false,
@@ -81,7 +81,7 @@ export class UpdateSchoolDto extends PartialType(
   @Min(0)
   smsPrice?: number;
 
-  // ── Shared school code controls (KARORDFORANDE or TIKIT_ADMIN) ──
+  // ── Shared school code controls (SCHOOL_ADMIN or TIKIT_ADMIN) ──
 
   @ApiProperty({
     required: false,

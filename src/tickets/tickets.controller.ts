@@ -21,7 +21,7 @@ export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
   @Post('claim')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Claim a free ticket for an event' })
   claimFreeTicket(@Request() req: any, @Body() dto: ClaimTicketDto) {
     return this.ticketsService.claimFreeTicket(
@@ -33,7 +33,7 @@ export class TicketsController {
   }
   // from here the get api starts
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'List tickets (admin)' })
   findAll(
     @Query('eventId') eventId?: string,
@@ -43,21 +43,21 @@ export class TicketsController {
   }
 
   @Patch(':id/void')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Void a ticket' })
   voidTicket(@Param('id') id: string) {
     return this.ticketsService.voidTicket(id);
   }
 
   @Patch(':id/check-in')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.SCANNER)
   @ApiOperation({ summary: 'Manually check-in a ticket by ID' })
   checkIn(@Param('id') id: string) {
     return this.ticketsService.checkIn(id);
   }
 
   @Get(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Get ticket details' })
   findOne(@Param('id') id: string) {
     return this.ticketsService.findOne(id);

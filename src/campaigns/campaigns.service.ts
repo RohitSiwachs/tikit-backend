@@ -60,7 +60,7 @@ export class CampaignsService {
     if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
 
     // School admin: force segmentFilters.schoolId to their own school
-    if (requestingUser?.role === 'KARORDFORANDE') {
+    if (requestingUser?.role === 'SCHOOL_ADMIN') {
       if (!requestingUser.schoolId) {
         throw new ForbiddenException('School admin must belong to a school');
       }
@@ -109,7 +109,7 @@ export class CampaignsService {
     const campaign = await this.findOne(id);
 
     // School admin can only send campaigns scoped to their own school
-    if (requestingUser?.role === 'KARORDFORANDE') {
+    if (requestingUser?.role === 'SCHOOL_ADMIN') {
       if (!requestingUser.schoolId) {
         throw new ForbiddenException('School admin must belong to a school');
       }

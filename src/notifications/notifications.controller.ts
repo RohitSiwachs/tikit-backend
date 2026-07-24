@@ -12,7 +12,7 @@ export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post('send')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Send targeted push notifications' })
   sendToSegment(@Body() dto: SendNotificationDto, @Request() req: any) {
     return this.notificationsService.sendToSegment(dto, req.user);

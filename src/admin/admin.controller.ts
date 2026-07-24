@@ -36,7 +36,7 @@ export class AdminController {
   }
 
   @Get('schools/:id/communication-usage')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Get communication usage for a single school' })
   getSchoolCommunicationUsage(
     @Param('id') schoolId: string,

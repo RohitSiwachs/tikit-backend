@@ -9,7 +9,7 @@ import { Role } from '../prisma-enums';
  *
  * Roles:
  *   TIKIT_ADMIN   — all-schools table + allocation edit modal
- *   KARORDFORANDE — read-only view of their own school only
+ *   SCHOOL_ADMIN — read-only view of their own school only
  *
  * The page calls existing REST endpoints:
  *   GET  /v1/admin/communication-usage                        (TIKIT_ADMIN)
@@ -23,7 +23,7 @@ import { Role } from '../prisma-enums';
 @Controller('admin/panel')
 export class AdminPanelController {
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   servePanel(@Res() res: Response, @Request() req: any) {
     const role: string = req.user?.role ?? '';
     const schoolId: string = req.user?.schoolId ?? '';
@@ -163,7 +163,7 @@ function buildHtml(role: string, schoolId: string): string {
       </table>\`;
   }
 
-  // ── KARORDFORANDE: own-school read-only card ────────────────────────────────
+  // ── SCHOOL_ADMIN: own-school read-only card ────────────────────────────────
 
   async function loadMySchool() {
     const res = await fetch(BASE + '/admin/schools/' + USER.schoolId + '/communication-usage',

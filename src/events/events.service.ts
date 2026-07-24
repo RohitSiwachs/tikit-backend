@@ -511,7 +511,8 @@ export class EventsService {
   ) {
     const isPrivileged = [
       'TIKIT_ADMIN',
-      'KARORDFORANDE',
+      'SCHOOL_ADMIN',
+      'SCHOOL_ADMIN',
       'EVENTANSVARIG',
     ].includes(callerRole);
 

@@ -18,7 +18,7 @@ export class ScannerController {
   constructor(private readonly scannerService: ScannerService) {}
 
   @Post('scan')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.SCANNER)
   @ApiOperation({
     summary: 'Scan or verify a QR code for a ticket or card',
     description:
@@ -124,7 +124,7 @@ export class ScannerController {
   }
 
   @Get('events/:eventId/stats')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.SCANNER)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.SCANNER)
   @ApiOperation({
     summary: 'Get scan/attendance stats for an event',
     description:

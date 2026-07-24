@@ -59,7 +59,7 @@ describe('External Event Blocking (integration)', () => {
     await cleanDatabase();
 
     school = await createTestSchool({ name: 'Test School' });
-    admin = await createTestUser(school, { role: 'KARORDFORANDE' });
+    admin = await createTestUser(school, { role: 'SCHOOL_ADMIN' });
     student = await createTestUser(school, { role: 'STUDENT' });
 
     internalEvent = await createTestEvent(school, { eventType: 'INTERNAL' });

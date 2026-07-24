@@ -159,7 +159,7 @@ export class SchoolsController {
   }
 
   @Patch(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Update school info' })
   update(
     @Param('id') id: string,
@@ -175,7 +175,7 @@ export class SchoolsController {
   // ─── School Verification ─────────────────────────────────────────────────
 
   @Get(':id/verification')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Get school verification status' })
   getVerificationStatus(@Param('id') id: string) {
     return this.schoolsService.getVerificationStatus(id);
@@ -198,7 +198,7 @@ export class SchoolsController {
   // ─── Individual Invite Codes ───────────────────────────────────────────────
 
   @Post(':id/individual-codes')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'Generate individual invite codes for a school (1–500)',
   })
@@ -215,7 +215,7 @@ export class SchoolsController {
   }
 
   @Get(':id/individual-codes')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'List individual invite codes for a school (paginated)',
   })
@@ -236,7 +236,7 @@ export class SchoolsController {
   }
 
   @Post(':id/individual-codes/export')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({
     summary: 'Export all individual invite codes as a CSV download',
   })
@@ -257,7 +257,7 @@ export class SchoolsController {
   }
 
   @Post(':id/upload-students')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Upload list of students' })
   @ApiBody({ type: UploadStudentsDto })
   uploadStudents(
@@ -272,7 +272,7 @@ export class SchoolsController {
   }
 
   @Post(':id/upload-classes')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Upload list of classes' })
   @ApiBody({ type: UploadClassesDto })
   uploadClasses(
@@ -287,7 +287,7 @@ export class SchoolsController {
   }
 
   @Post(':id/assign-cards')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Assign cards to selected student groups' })
   @ApiBody({ type: AssignCardsToSchoolDto })
   assignCards(
@@ -304,7 +304,7 @@ export class SchoolsController {
   // ─── Classes CRUD ─────────────────────────────────────────────────────────
 
   @Get(':id/classes')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Get all classes for a school, including students' })
   getClasses(@Param('id') id: string, @Request() req: any) {
     if (req.user.role !== Role.TIKIT_ADMIN && req.user.schoolId !== id) {
@@ -316,7 +316,7 @@ export class SchoolsController {
   }
 
   @Post(':id/classes')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Create a new class' })
   @ApiBody({ type: CreateClassDto })
   createClass(
@@ -331,7 +331,7 @@ export class SchoolsController {
   }
 
   @Patch(':id/classes/:classId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Update a class' })
   @ApiBody({ type: UpdateClassDto })
   updateClass(
@@ -347,7 +347,7 @@ export class SchoolsController {
   }
 
   @Delete(':id/classes/:classId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Delete a class' })
   deleteClass(
     @Param('id') id: string,

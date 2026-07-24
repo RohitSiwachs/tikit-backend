@@ -15,7 +15,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../prisma-enums';
 
-const ADMIN_ROLES = [Role.TIKIT_ADMIN, Role.KARORDFORANDE] as const;
+const ADMIN_ROLES = [Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN] as const;
 
 @ApiTags('posts')
 @ApiBearerAuth()
@@ -24,14 +24,14 @@ export class PostsController {
   constructor(private readonly postsService: PostsService) {}
 
   @Post()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Create a new post' })
   create(@Body() createPostDto: CreatePostDto, @Request() req: any) {
     return this.postsService.create(createPostDto, req.user.id);
   }
 
   @Get('feed')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({
     summary:
       'Personalized feed — posts from own school + schools of events attended',
@@ -66,7 +66,7 @@ export class PostsController {
   }
 
   @Patch(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Update a post (owner or admin only)' })
   update(
     @Param('id') id: string,
@@ -77,14 +77,14 @@ export class PostsController {
   }
 
   @Delete(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Delete a post (owner or admin only)' })
   remove(@Param('id') id: string, @Request() req: any) {
     return this.postsService.remove(id, req.user);
   }
 
   @Post(':id/like')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Toggle like on a post' })
   toggleLike(@Param('id') id: string, @Request() req: any) {
     return this.postsService.toggleLike(id, req.user.id);
@@ -97,7 +97,7 @@ export class PostsController {
   }
 
   @Post(':id/comments')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Add a comment to a post' })
   addComment(
     @Param('id') id: string,
@@ -108,14 +108,14 @@ export class PostsController {
   }
 
   @Delete('comments/:commentId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Delete a comment (owner or admin only)' })
   deleteComment(@Param('commentId') commentId: string, @Request() req: any) {
     return this.postsService.deleteComment(commentId, req.user);
   }
 
   @Post(':id/vote')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Vote on a poll post' })
   vote(
     @Param('id') id: string,

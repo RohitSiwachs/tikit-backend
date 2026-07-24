@@ -18,7 +18,7 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Get()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({
     summary: 'Get users wallet containing tickets and activated cards',
   })
@@ -27,7 +27,7 @@ export class WalletController {
   }
 
   @Get('pending')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({
     summary: 'Get all cards assigned to the user that are pending activation',
   })
@@ -36,7 +36,7 @@ export class WalletController {
   }
 
   @Post('activate-card')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Activate a card using a unique code' })
   activateCard(@Body('code') code: string, @Request() req: any) {
     return this.walletService.activateCard(req.user.id, code);

@@ -26,7 +26,7 @@ export class NotificationsService {
 
     // School admin can ONLY send to their own school's students.
     // Super admin (TIKIT_ADMIN) can target any school.
-    if (requestingUser?.role === 'KARORDFORANDE') {
+    if (requestingUser?.role === 'SCHOOL_ADMIN') {
       if (!requestingUser.schoolId) {
         throw new ForbiddenException('School admin must belong to a school');
       }

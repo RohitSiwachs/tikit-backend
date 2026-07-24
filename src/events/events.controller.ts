@@ -27,7 +27,7 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Post()
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Create a new event with ticket types' })
   create(@Body() createEventDto: CreateEventDto, @Request() req: any) {
     return this.eventsService.create(
@@ -70,7 +70,7 @@ export class EventsController {
   }
 
   @Patch(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update event (publish/cancel)' })
   update(
     @Param('id') id: string,
@@ -87,7 +87,7 @@ export class EventsController {
   @Get(':id/attendees')
   @Roles(
     Role.TIKIT_ADMIN,
-    Role.KARORDFORANDE,
+    Role.SCHOOL_ADMIN,
     Role.EVENTANSVARIG,
     Role.STUDENT,
     Role.SCANNER,
@@ -113,7 +113,7 @@ export class EventsController {
   }
 
   @Delete(':id')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Delete an event' })
   async remove(@Param('id') id: string, @Request() req: any) {
     await this.eventsService.remove(
@@ -124,28 +124,28 @@ export class EventsController {
   }
 
   @Post(':id/duplicate')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Duplicate an event' })
   duplicateEvent(@Param('id') id: string) {
     return this.eventsService.duplicateEvent(id);
   }
 
   @Patch(':id/pin')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Pin an event' })
   pinEvent(@Param('id') id: string) {
     return this.eventsService.pinEvent(id);
   }
 
   @Patch(':id/unpin')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Unpin an event' })
   unpinEvent(@Param('id') id: string) {
     return this.eventsService.unpinEvent(id);
   }
 
   @Patch(':id/publish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Publish an event — makes it visible to students' })
   publishEvent(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.publishEvent(
@@ -155,7 +155,7 @@ export class EventsController {
   }
 
   @Patch(':id/unpublish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({
     summary: 'Unpublish an event — hides it from students without deleting',
   })
@@ -164,7 +164,7 @@ export class EventsController {
   }
 
   @Patch(':id/cancel')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({
     summary:
       'Cancel an event — scanner will reject all tickets for cancelled events',
@@ -179,7 +179,7 @@ export class EventsController {
   // --- TICKET TYPES ---
 
   @Post(':id/ticket-types')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Add a ticket type to an event' })
   createTicketType(
     @Param('id') id: string,
@@ -196,7 +196,7 @@ export class EventsController {
   }
 
   @Patch(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update a ticket type' })
   updateTicketType(
     @Param('ticketTypeId') ticketTypeId: string,
@@ -213,7 +213,7 @@ export class EventsController {
   }
 
   @Patch(':id/ticket-types/:ticketTypeId/sold-out')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Mark a ticket type as sold out or available' })
   markSoldOut(
     @Param('id') eventId: string,
@@ -232,7 +232,7 @@ export class EventsController {
   }
 
   @Delete(':id/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Delete a ticket type' })
   removeTicketType(
     @Param('id') eventId: string,
@@ -247,7 +247,7 @@ export class EventsController {
   // --- EVENT DETAIL FLOW ---
 
   @Post(':id/like')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Toggle like on an event' })
   likeEvent(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.likeEvent(id, req.user.id);
@@ -260,7 +260,7 @@ export class EventsController {
   }
 
   @Post(':id/comments')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Add a comment to an event' })
   addComment(
     @Param('id') id: string,
@@ -271,7 +271,7 @@ export class EventsController {
   }
 
   @Post(':id/rsvp')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({
     summary: "I'm Going — RSVP & fetch free ticket (internal events)",
   })
@@ -280,14 +280,14 @@ export class EventsController {
   }
 
   @Delete(':id/rsvp')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({ summary: 'Cancel RSVP — void ticket and restore capacity' })
   cancelRsvp(@Param('id') id: string, @Request() req: any) {
     return this.eventsService.cancelRsvp(id, req.user.id);
   }
 
   @Get(':id/external-link')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG, Role.STUDENT)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG, Role.STUDENT)
   @ApiOperation({
     summary: 'Get external ticket provider link (external events only)',
   })
@@ -298,21 +298,21 @@ export class EventsController {
   // --- MULTI-SCHOOL EVENT CONNECTIONS ---
 
   @Post(':id/connect')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Request connection to another schools event' })
   requestConnection(@Param('id') eventId: string, @Request() req: any) {
     return this.eventsService.requestConnection(eventId, req.user.schoolId);
   }
 
   @Get(':id/connections/requests')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Get all connection requests for an event' })
   getConnectionRequests(@Param('id') eventId: string) {
     return this.eventsService.getConnectionRequests(eventId);
   }
 
   @Patch('connections/requests/:requestId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN)
   @ApiOperation({ summary: 'Approve or reject a connection request' })
   respondToConnectionRequest(
     @Param('requestId') requestId: string,
@@ -324,7 +324,7 @@ export class EventsController {
   // --- CONNECTED SCHOOL MANAGEMENT ---
 
   @Post(':eventId/connections/:schoolId/ticket-types')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Add a ticket type for a connected school' })
   createConnectionTicketType(
     @Param('eventId') eventId: string,
@@ -343,7 +343,7 @@ export class EventsController {
   }
 
   @Patch(':eventId/connections/:schoolId/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Update a ticket type for a connected school' })
   updateConnectionTicketType(
     @Param('eventId') eventId: string,
@@ -364,7 +364,7 @@ export class EventsController {
   }
 
   @Delete(':eventId/connections/:schoolId/ticket-types/:ticketTypeId')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({ summary: 'Delete a ticket type for a connected school' })
   removeConnectionTicketType(
     @Param('eventId') eventId: string,
@@ -383,7 +383,7 @@ export class EventsController {
   }
 
   @Patch(':eventId/connections/:schoolId/publish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({
     summary:
       'Publish event for a connected school — makes it visible to their students',
@@ -403,7 +403,7 @@ export class EventsController {
   }
 
   @Patch(':eventId/connections/:schoolId/unpublish')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.EVENTANSVARIG)
+  @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.EVENTANSVARIG)
   @ApiOperation({
     summary:
       'Unpublish event for a connected school — hides from their students',
