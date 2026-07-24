@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { EventsService } from './events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 const mockPrisma = {
   event: {
@@ -25,6 +26,7 @@ describe('EventsService', () => {
       providers: [
         EventsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CacheService, useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), delByPattern: jest.fn() } },
       ],
     }).compile();
 

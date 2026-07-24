@@ -132,6 +132,15 @@ export class UsersController {
     return this.usersService.findOne(id, req.user);
   }
 
+  @Patch('profile')
+  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
+  @ApiOperation({
+    summary: 'Update profile information for the logged-in user',
+  })
+  updateProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
+    return this.usersService.updateProfile(req.user.id, dto);
+  }
+
   @Patch(':id')
   @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE)
   @ApiOperation({ summary: 'Update user data as an admin' })
@@ -193,15 +202,6 @@ export class UsersController {
       requestId,
       status,
     );
-  }
-
-  @Patch('profile')
-  @Roles(Role.TIKIT_ADMIN, Role.KARORDFORANDE, Role.STUDENT)
-  @ApiOperation({
-    summary: 'Update profile information for the logged-in user',
-  })
-  updateProfile(@Request() req: any, @Body() dto: UpdateProfileDto) {
-    return this.usersService.updateProfile(req.user.id, dto);
   }
 
   @Delete(':id')

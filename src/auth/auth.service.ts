@@ -541,7 +541,7 @@ export class AuthService {
     });
 
     const frontendUrl =
-      this.config.get<string>('FRONTEND_URL') || 'http://localhost:3001';
+      this.config.get<string>('ADMIN_FRONTEND_URL') || 'https://admin.tikit.se';
     const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
 
     // Fire-and-forget — timing must not reveal whether the email exists

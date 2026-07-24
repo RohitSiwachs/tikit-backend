@@ -76,7 +76,9 @@ describe('UsersService', () => {
       // No prior assignment for this user
       mockPrisma.cardCode.findMany.mockResolvedValue([]);
       // Pre-generated unused code exists on the card
-      mockPrisma.cardCode.findFirst.mockResolvedValue({ id: 'code-existing-1' });
+      mockPrisma.cardCode.findFirst.mockResolvedValue({
+        id: 'code-existing-1',
+      });
       mockPrisma.cardCode.update.mockResolvedValue({});
 
       const result = await service.assignCards(cardId, [userId]);

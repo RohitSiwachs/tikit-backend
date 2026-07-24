@@ -60,7 +60,6 @@ export class CreateTicketTypeDto {
   @IsOptional()
   @IsString()
   deepLink?: string;
-
 }
 
 export class CreateEventDto {
@@ -208,5 +207,4 @@ export class UpdateTicketTypeDto {
   @IsOptional()
   @IsNumber()
   quantityRemaining?: number;
-
 }

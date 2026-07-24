@@ -3,6 +3,7 @@ import { PostsService } from './posts.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PostType } from '../common';
+import { CacheService } from '../cache/cache.service';
 
 const mockPrisma = {
   post: {
@@ -27,6 +28,7 @@ describe('PostsService', () => {
       providers: [
         PostsService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: CacheService, useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), delByPattern: jest.fn() } },
       ],
     }).compile();
 

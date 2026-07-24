@@ -654,7 +654,6 @@ export class EventsService {
                     ...ttData,
                     price: 0,
                     priceDisplay: 'Free',
-
                   }
                 : ttData;
             return {

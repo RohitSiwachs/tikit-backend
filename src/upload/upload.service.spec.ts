@@ -51,8 +51,8 @@ describe('UploadService', () => {
 
     it('uses "uploads" as default folder when none is provided', async () => {
       const result = await service.generatePresignedUrl({
-        filename: 'doc.pdf',
-        content_type: 'application/pdf',
+        filename: 'photo2.jpg',
+        content_type: 'image/jpeg',
       });
 
       expect(result.key).toMatch(/^uploads\//);
@@ -72,8 +72,8 @@ describe('UploadService', () => {
 
       const svcNoPublic = moduleNoPublic.get<UploadService>(UploadService);
       const result = await svcNoPublic.generatePresignedUrl({
-        filename: 'file.txt',
-        content_type: 'text/plain',
+        filename: 'file.png',
+        content_type: 'image/png',
       });
 
       expect(result.file_url).toContain('r2.cloudflarestorage.com');

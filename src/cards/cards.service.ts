@@ -6,8 +6,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCardDto, UpdateCardDto } from './dto/card.dto';
 import * as crypto from 'crypto';
-import { generateFormattedCode, isValidCardCode } from '../common/utils/code-generator';
-
+import {
+  generateFormattedCode,
+  isValidCardCode,
+} from '../common/utils/code-generator';
 
 @Injectable()
 export class CardsService {

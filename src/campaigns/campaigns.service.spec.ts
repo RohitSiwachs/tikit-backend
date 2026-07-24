@@ -3,6 +3,7 @@ import { CampaignsService } from './campaigns.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailsService } from '../emails/emails.service';
 import { getQueueToken } from '@nestjs/bullmq';
+import { CommunicationUsageService } from '../communication/communication-usage.service';
 
 const mockPrisma = {
   campaign: {
@@ -25,6 +26,7 @@ describe('CampaignsService', () => {
         CampaignsService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: EmailsService, useValue: mockEmailsService },
+        { provide: CommunicationUsageService, useValue: { checkSmsLimit: jest.fn(), checkEmailLimit: jest.fn(), recordUsage: jest.fn() } },
         { provide: getQueueToken('campaigns'), useValue: mockQueue },
       ],
     }).compile();
