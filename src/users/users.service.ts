@@ -250,15 +250,73 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException(`User with ID ${id} not found`);
 
-    // Delete dependent records first to avoid FK constraint violations
     return this.prisma.$transaction(async (tx) => {
+      // 1. If deleting a SCHOOL_ADMIN, cascade delete the entire school
+      if (user.role === 'SCHOOL_ADMIN' && user.schoolId) {
+        const schoolId = user.schoolId;
+
+        // Delete school-level dependencies
+        await tx.class.deleteMany({ where: { schoolId } });
+        await tx.cardCode.deleteMany({ where: { card: { schoolId } } });
+        await tx.card.deleteMany({ where: { schoolId } });
+        
+        await tx.ticket.deleteMany({ where: { event: { schoolId } } });
+        await tx.voucher.deleteMany({ where: { event: { schoolId } } });
+        await tx.ticketType.deleteMany({ where: { event: { schoolId } } });
+        
+        await tx.eventConnectionRequest.deleteMany({ where: { OR: [{ requestingSchoolId: schoolId }, { event: { schoolId } }] } });
+        await tx.eventConnectionState.deleteMany({ where: { OR: [{ schoolId }, { event: { schoolId } }] } });
+        await tx.eventLike.deleteMany({ where: { event: { schoolId } } });
+        await tx.eventComment.deleteMany({ where: { event: { schoolId } } });
+        await tx.notificationTriggerOverride.deleteMany({ where: { schoolId } });
+        await tx.event.deleteMany({ where: { schoolId } });
+
+        await tx.pollVote.deleteMany({ where: { post: { schoolId } } });
+        await tx.pollOption.deleteMany({ where: { post: { schoolId } } });
+        await tx.postComment.deleteMany({ where: { post: { schoolId } } });
+        await tx.postLike.deleteMany({ where: { post: { schoolId } } });
+        await tx.post.deleteMany({ where: { schoolId } });
+        
+        await tx.communicationAllocation.deleteMany({ where: { schoolId } });
+        await tx.schoolInviteCode.deleteMany({ where: { schoolId } });
+
+        // Delete all users belonging to this school
+        const schoolUsers = await tx.user.findMany({ where: { schoolId }, select: { id: true } });
+        const schoolUserIds = schoolUsers.map(u => u.id);
+        
+        if (schoolUserIds.length > 0) {
+          await tx.followRequest.deleteMany({ where: { OR: [{ senderId: { in: schoolUserIds } }, { receiverId: { in: schoolUserIds } }] } });
+          await tx.eventLike.deleteMany({ where: { userId: { in: schoolUserIds } } });
+          await tx.eventComment.deleteMany({ where: { userId: { in: schoolUserIds } } });
+          await tx.postLike.deleteMany({ where: { userId: { in: schoolUserIds } } });
+          await tx.postComment.deleteMany({ where: { authorId: { in: schoolUserIds } } });
+          await tx.pollVote.deleteMany({ where: { userId: { in: schoolUserIds } } });
+          await tx.refreshToken.deleteMany({ where: { userId: { in: schoolUserIds } } });
+          await tx.user.deleteMany({ where: { id: { in: schoolUserIds } } });
+        }
+        
+        await tx.school.delete({ where: { id: schoolId } });
+        return { message: 'School Admin and their entire school have been successfully deleted.' };
+      }
+
+      // 2. Normal student deletion
       await tx.ticket.deleteMany({ where: { userId: id } });
-      await tx.cardCode.deleteMany({ where: { userId: id } });
+      await tx.cardCode.updateMany({
+        where: { userId: id },
+        data: { userId: null, isUsed: false, assignedAt: null, usedAt: null }
+      });
       await tx.followRequest.deleteMany({
         where: { OR: [{ senderId: id }, { receiverId: id }] },
       });
+      await tx.postLike.deleteMany({ where: { userId: id } });
+      await tx.postComment.deleteMany({ where: { authorId: id } });
+      await tx.eventLike.deleteMany({ where: { userId: id } });
+      await tx.eventComment.deleteMany({ where: { userId: id } });
+      await tx.pollVote.deleteMany({ where: { userId: id } });
+      await tx.refreshToken.deleteMany({ where: { userId: id } });
+      
       return tx.user.delete({ where: { id } });
-    });
+    }, { maxWait: 15000, timeout: 60000 });
   }
 
   async getProfile(username: string, requestingUserId: string) {
