@@ -30,6 +30,7 @@ model School {
   connectedEvents            Event[]   @relation("EventConnectedSchools")
   cards                      Card[]
   posts                      Post[]
+  connectedPosts             Post[]    @relation("PostConnectedSchools")
   classes                    Class[]
   cardLimit                  Int       @default(1)
   // ── Shared school code controls ──────────────────────────────────────────
@@ -307,10 +308,11 @@ model Post {
   body        String?
   imageUrls   String[]      @default([])
   postType    String        @default("text")
-  schoolId    String
-  school      School        @relation(fields: [schoolId], references: [id])
-  authorId    String
-  author      User          @relation(fields: [authorId], references: [id])
+  schoolId         String
+  school           School        @relation(fields: [schoolId], references: [id])
+  connectedSchools School[]      @relation("PostConnectedSchools")
+  authorId         String
+  author           User          @relation(fields: [authorId], references: [id])
   eventId     String?
   event       Event?        @relation(fields: [eventId], references: [id], onDelete: Cascade)
   likes       PostLike[]

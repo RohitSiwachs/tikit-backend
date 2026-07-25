@@ -30,6 +30,17 @@ export class CreatePostDto {
   @IsNotEmpty()
   schoolId: string;
 
+  @ApiProperty({
+    required: false,
+    type: [String],
+    description:
+      'Additional school IDs this post should be visible to (TIKIT_ADMIN only). Students from all listed schools will see this post in their feed.',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  connectedSchoolIds?: string[];
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()

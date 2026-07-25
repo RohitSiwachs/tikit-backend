@@ -111,10 +111,18 @@ export class PostsService {
         pollOptions: _p,
         pollExpiresAt: _pe,
         scheduledAt: _s,
+        connectedSchoolIds,
         ...postData
       } = createPostDto;
       const post = await this.prisma.post.create({
-        data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
+        data: {
+          ...postData,
+          authorId,
+          scheduledAt: scheduledAt ?? null,
+          ...(connectedSchoolIds?.length
+            ? { connectedSchools: { connect: connectedSchoolIds.map((id) => ({ id })) } }
+            : {}),
+        },
         include: { author: { select: POST_AUTHOR_SELECT } },
       });
 
@@ -144,6 +152,7 @@ export class PostsService {
         pollOptions,
         pollExpiresAt,
         scheduledAt: _,
+        connectedSchoolIds,
         ...postData
       } = createPostDto;
       const post = await this.prisma.post.create({
@@ -155,6 +164,9 @@ export class PostsService {
           pollOptions: {
             create: pollOptions.map((text) => ({ text })),
           },
+          ...(connectedSchoolIds?.length
+            ? { connectedSchools: { connect: connectedSchoolIds.map((id) => ({ id })) } }
+            : {}),
         },
         include: {
           author: { select: POST_AUTHOR_SELECT },
@@ -174,10 +186,18 @@ export class PostsService {
       pollOptions: __,
       pollExpiresAt: ___,
       scheduledAt: ____,
+      connectedSchoolIds,
       ...postData
     } = createPostDto;
     const post = await this.prisma.post.create({
-      data: { ...postData, authorId, scheduledAt: scheduledAt ?? null },
+      data: {
+        ...postData,
+        authorId,
+        scheduledAt: scheduledAt ?? null,
+        ...(connectedSchoolIds?.length
+          ? { connectedSchools: { connect: connectedSchoolIds.map((id) => ({ id })) } }
+          : {}),
+      },
       include: { author: { select: POST_AUTHOR_SELECT } },
     });
 
@@ -202,6 +222,7 @@ export class PostsService {
           {
             OR: [
               { schoolId },
+              { connectedSchools: { some: { id: schoolId } } },
               { event: { schoolId: schoolId } },
               { event: { connectedSchools: { some: { id: schoolId } } } },
             ],
@@ -278,6 +299,7 @@ export class PostsService {
           {
             OR: [
               { schoolId },
+              { connectedSchools: { some: { id: schoolId } } },
               { event: { schoolId: schoolId } },
               { event: { connectedSchools: { some: { id: schoolId } } } },
             ],
