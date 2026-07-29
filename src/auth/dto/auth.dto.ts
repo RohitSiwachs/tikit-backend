@@ -77,6 +77,11 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   phone?: string;
+
+  @ApiPropertyOptional({ description: 'The class name of the student' })
+  @IsOptional()
+  @IsString()
+  className?: string;
 }
 
 export class SendOtpDto {

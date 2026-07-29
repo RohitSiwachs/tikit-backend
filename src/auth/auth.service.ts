@@ -31,6 +31,7 @@ const SAFE_USER_SELECT = {
   username: true,
   role: true,
   schoolId: true,
+  className: true,
   school: { select: { id: true, name: true, city: true, logoUrl: true } },
   avatarUrl: true,
   isVerified: true,
