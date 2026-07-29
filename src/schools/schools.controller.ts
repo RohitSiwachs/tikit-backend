@@ -303,6 +303,13 @@ export class SchoolsController {
 
   // ─── Classes CRUD ─────────────────────────────────────────────────────────
 
+  @Get(':id/public-classes')
+  @Public()
+  @ApiOperation({ summary: 'Get all classes for a school (Public)' })
+  getPublicClasses(@Param('id') id: string) {
+    return this.schoolsService.getPublicClasses(id);
+  }
+
   @Get(':id/classes')
   @Roles(Role.TIKIT_ADMIN, Role.SCHOOL_ADMIN, Role.STUDENT)
   @ApiOperation({ summary: 'Get all classes for a school, including students' })

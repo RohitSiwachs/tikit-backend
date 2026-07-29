@@ -912,6 +912,19 @@ export class SchoolsService {
     return classData;
   }
 
+  async getPublicClasses(schoolId: string) {
+    return await this.prisma.class.findMany({
+      where: { schoolId },
+      orderBy: { graduationYear: 'desc' },
+      select: {
+        id: true,
+        className: true,
+        graduationYear: true,
+        schoolId: true,
+      },
+    });
+  }
+
   async createClass(
     schoolId: string,
     dto: { className: string; graduationYear: number },
