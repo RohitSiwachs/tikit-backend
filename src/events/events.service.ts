@@ -144,7 +144,7 @@ export class EventsService {
       const studentCardIds = requestingUser.id
         ? (
             await this.prisma.cardCode.findMany({
-              where: { userId: requestingUser.id },
+              where: { userId: requestingUser.id, isUsed: true },
               select: { cardId: true },
             })
           ).map((c) => c.cardId)
@@ -331,6 +331,7 @@ export class EventsService {
           where: {
             userId: requestingUserId,
             cardId: { in: event.linkedCardIds },
+            isUsed: true,
           },
         });
         if (!holdsCard) {
@@ -969,7 +970,7 @@ export class EventsService {
       student?.role === 'STUDENT'
     ) {
       const holdsCard = await this.prisma.cardCode.findFirst({
-        where: { userId, cardId: { in: event.linkedCardIds } },
+        where: { userId, cardId: { in: event.linkedCardIds }, isUsed: true },
       });
       if (!holdsCard) {
         throw new ForbiddenException(
