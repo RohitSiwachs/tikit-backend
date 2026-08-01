@@ -105,11 +105,6 @@ export class CreateEventDto {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsString()
-  externalBuyUrl?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
   @IsNumber()
   ageLimit?: number;
 

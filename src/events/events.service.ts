@@ -1064,7 +1064,6 @@ export class EventsService {
     }
 
     return {
-      externalBuyUrl: event.externalBuyUrl,
       externalTicketStatus: event.externalTicketStatus,
     };
   }
