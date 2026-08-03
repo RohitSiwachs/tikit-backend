@@ -39,10 +39,18 @@ export class PrismaExceptionFilter implements ExceptionFilter {
         status = HttpStatus.BAD_REQUEST;
         message = 'Relation violation — required relation missing';
         break;
-      default:
+      default: {
+        const column =
+          (exception.meta?.column as string) ??
+          (exception.meta?.field_name as string) ??
+          (exception.meta?.target as string) ??
+          'unknown';
         this.logger.error(
-          `Unhandled Prisma error ${exception.code}: ${exception.message}`,
+          `Unhandled Prisma error ${exception.code} on column "${column}": ${exception.message}`,
         );
+        message = `Database error (${exception.code}) on column "${column}"`;
+        break;
+      }
     }
 
     response.status(status).json({ statusCode: status, message });

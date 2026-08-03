@@ -150,7 +150,6 @@ describe('EventsService', () => {
       externalPriceDisplay: null,
       scheduledAt: null,
       postedBySuperAdmin: false,
-      restrictToCardHolders: true,
       _count: { tickets: 0, likes: 0, comments: 0 },
     };
 

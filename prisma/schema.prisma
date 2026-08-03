@@ -221,8 +221,9 @@ model TicketType {
   price             Int
   quantityTotal     Int
   quantityRemaining Int
-  fewLeftThreshold  Int?    @default(10)
-  isSoldOut         Boolean @default(false)
+  fewLeftThreshold    Int?    @default(10)
+  isSoldOut           Boolean @default(false)
+  freeForHostSchool   Boolean @default(false)
 
 
   // null = host school ticket, non-null = connected school ticket
