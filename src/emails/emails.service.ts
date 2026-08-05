@@ -145,4 +145,51 @@ export class EmailsService {
     `;
     return this.sendEmail(to, subject, html);
   }
+
+  async sendEmailChangeOtpEmail(
+    email: string,
+    displayName: string,
+    otp: string,
+  ) {
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #eaeaea;border-radius:5px;">
+        <h2 style="color:#6c5ce7;">Email Change Request 🔐</h2>
+        <p>Hej ${displayName},</p>
+        <p>We received a request to change the email address on your TiKit account.</p>
+        <p>Use the OTP below to confirm it's you. <strong>This code expires in 10 minutes.</strong></p>
+        <div style="background:#f9f9f9;padding:20px;border-radius:5px;margin:20px 0;text-align:center;border-left:4px solid #6c5ce7;">
+          <p style="margin:0;font-size:14px;color:#555;">Your verification code:</p>
+          <h1 style="margin:10px 0 0;color:#333;letter-spacing:6px;font-size:36px;">${otp}</h1>
+        </div>
+        <p>If you didn't request this, you can safely ignore this email — your account will not be changed.</p>
+        <hr style="border:0;border-top:1px solid #eaeaea;margin:20px 0;"/>
+        <p style="font-size:12px;color:#999;">The TiKit Team</p>
+      </div>
+    `;
+    return this.sendEmail(email, 'Verify your identity — TiKit email change', html);
+  }
+
+  async sendNewEmailOtpEmail(
+    email: string,
+    displayName: string,
+    otp: string,
+  ) {
+    const html = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #eaeaea;border-radius:5px;">
+        <h2 style="color:#6c5ce7;">Confirm your new email ✉️</h2>
+        <p>Hej ${displayName},</p>
+        <p>Someone requested to add <strong>${email}</strong> as the new email address for a TiKit account.</p>
+        <p>Enter the OTP below to confirm you own this address. <strong>This code expires in 10 minutes.</strong></p>
+        <div style="background:#f9f9f9;padding:20px;border-radius:5px;margin:20px 0;text-align:center;border-left:4px solid #00b894;">
+          <p style="margin:0;font-size:14px;color:#555;">Your confirmation code:</p>
+          <h1 style="margin:10px 0 0;color:#333;letter-spacing:6px;font-size:36px;">${otp}</h1>
+        </div>
+        <p>If you didn't request this, please ignore this email.</p>
+        <hr style="border:0;border-top:1px solid #eaeaea;margin:20px 0;"/>
+        <p style="font-size:12px;color:#999;">The TiKit Team</p>
+      </div>
+    `;
+    return this.sendEmail(email, 'Confirm your new TiKit email address', html);
+  }
 }
+

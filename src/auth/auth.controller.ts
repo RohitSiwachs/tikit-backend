@@ -9,6 +9,11 @@ import {
   ForgotPasswordDto,
   ResetPasswordDto,
 } from './dto/auth.dto';
+import {
+  VerifyCurrentEmailOtpDto,
+  SetNewEmailDto,
+  ConfirmNewEmailOtpDto,
+} from './dto/email-change.dto';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from './decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -98,5 +103,54 @@ export class AuthController {
   @ApiOperation({ summary: 'Reset password using the emailed token' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  // ─── Email Change ───────────────────────────────────────────────────────────
+
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 60_000, limit: 3 } }) // 3 requests per minute per IP
+  @Post('email-change/request')
+  @ApiOperation({
+    summary:
+      'Step 1 — Request email change: sends OTP to the current email address',
+  })
+  requestEmailChange(@Request() req: any) {
+    return this.authService.requestEmailChange(req.user.id);
+  }
+
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 300_000, limit: 10 } }) // 10 attempts per 5 min per IP
+  @Post('email-change/verify-current')
+  @ApiOperation({
+    summary:
+      'Step 2 — Verify OTP from current email: returns a changeToken for next steps',
+  })
+  verifyCurrentEmailOtp(
+    @Request() req: any,
+    @Body() dto: VerifyCurrentEmailOtpDto,
+  ) {
+    return this.authService.verifyCurrentEmailOtp(req.user.id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 300_000, limit: 5 } }) // 5 attempts per 5 min per IP
+  @Post('email-change/set-new')
+  @ApiOperation({
+    summary:
+      'Step 3 — Submit new email address: sends OTP to the new email (requires changeToken)',
+  })
+  setNewEmail(@Request() req: any, @Body() dto: SetNewEmailDto) {
+    return this.authService.setNewEmail(req.user.id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 300_000, limit: 10 } }) // 10 attempts per 5 min per IP
+  @Post('email-change/confirm')
+  @ApiOperation({
+    summary:
+      'Step 4 — Confirm new email OTP: updates email and revokes all sessions',
+  })
+  confirmNewEmail(@Request() req: any, @Body() dto: ConfirmNewEmailOtpDto) {
+    return this.authService.confirmNewEmail(req.user.id, dto);
   }
 }

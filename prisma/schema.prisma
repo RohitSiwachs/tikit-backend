@@ -116,6 +116,15 @@ model User {
   otpSentAt           DateTime?
   otpAttempts         Int       @default(0)
 
+  // Email change flow (2-step OTP)
+  emailChangeToken     String?   // SHA-256 hash of the short-lived change session token
+  emailChangeExpiry    DateTime?
+  emailChangePending   String?   // new email awaiting OTP confirmation
+  emailChangeOtp       String?   // bcrypt hash of OTP sent to new email
+  emailChangeOtpExpiry DateTime?
+  emailChangeOtpSentAt DateTime?
+  emailChangeOtpAttempts Int     @default(0)
+
   // Soft delete
   deletedAt DateTime?
 
