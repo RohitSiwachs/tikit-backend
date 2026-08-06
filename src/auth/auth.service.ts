@@ -57,6 +57,7 @@ const SAFE_USER_SELECT = {
   language: true,
   isPrivateAccount: true,
   isVisibleToOtherSchools: true,
+  socialLinks: true,
   createdAt: true,
 };
 
