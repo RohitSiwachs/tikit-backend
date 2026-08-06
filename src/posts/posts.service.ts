@@ -237,6 +237,7 @@ export class PostsService {
           take: limit,
           include: {
             author: { select: POST_AUTHOR_SELECT },
+            school: { select: { id: true, name: true } },
             _count: { select: { likes: true, comments: true } },
             pollOptions: { include: { _count: { select: { votes: true } } } },
             // pollVotes intentionally omitted — overlaid per-user below
@@ -312,6 +313,7 @@ export class PostsService {
         where,
         include: {
           author: { select: POST_AUTHOR_SELECT },
+          school: { select: { id: true, name: true } },
           _count: { select: { likes: true, comments: true } },
           pollOptions: { include: { _count: { select: { votes: true } } } },
           // pollVotes intentionally omitted — overlaid per-user below
