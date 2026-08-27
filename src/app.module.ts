@@ -1,0 +1,169 @@
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import * as crypto from 'crypto';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { TerminusModule } from '@nestjs/terminus';
+import { ThrottlerRedisModule } from './common/throttler/throttler-redis.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+import { LoggerModule } from 'nestjs-pino';
+import { APP_GUARD } from '@nestjs/core';
+import { BullModule } from '@nestjs/bullmq';
+import { BullBoardModule } from '@bull-board/nestjs';
+import { ExpressAdapter } from '@bull-board/express';
+import {
+  databaseConfig,
+  jwtConfig,
+  s3Config,
+  resendConfig,
+  redisConfig,
+} from './config/index';
+import { envValidationSchema } from './config/env.validation';
+import { AuthModule } from './auth/auth.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
+import { BullBoardAuthMiddleware } from './common/middleware/bull-board-auth.middleware';
+
+// Feature Modules
+import { EventsModule } from './events/events.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SchoolsModule } from './schools/schools.module';
+import { UsersModule } from './users/users.module';
+import { CardsModule } from './cards/cards.module';
+import { AdminModule } from './admin/admin.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { PostsModule } from './posts/posts.module';
+import { ClassesModule } from './classes/classes.module';
+import { SegmentsModule } from './segments/segments.module';
+import { CampaignsModule } from './campaigns/campaigns.module';
+import { ScannerModule } from './scanner/scanner.module';
+import { WalletModule } from './wallet/wallet.module';
+import { GatewayModule } from './gateway/gateway.module';
+import { UploadModule } from './upload/upload.module';
+import { VouchersModule } from './vouchers/vouchers.module';
+import { EmailsModule } from './emails/emails.module';
+import { DeepLinkModule } from './deep-link/deep-link.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { AdminPanelModule } from './admin-panel/admin-panel.module';
+import { NotificationTriggersModule } from './notification-triggers/notification-triggers.module';
+import { AppController } from './app.controller';
+import { CacheModule } from './cache/cache.module';
+
+@Module({
+  imports: [
+    // ─── Global Config ─────────────────────────────────────
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [databaseConfig, jwtConfig, s3Config, resendConfig, redisConfig],
+      envFilePath: '.env',
+      validationSchema: envValidationSchema,
+      validationOptions: { abortEarly: false },
+    }),
+
+    // ─── BullMQ — global Redis connection ─────────────────
+    BullModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        connection: { url: config.get<string>('redis.url') },
+      }),
+    }),
+
+    // ─── Bull Board — queue monitoring dashboard ───────────
+    // Accessible at /admin/queues (protected by BullBoardAuthMiddleware)
+    BullBoardModule.forRoot({
+      route: '/admin/queues',
+      adapter: ExpressAdapter,
+      boardOptions: {
+        uiConfig: { boardTitle: 'TiKit Queues' },
+      },
+    }),
+
+    // ─── Scheduler (cron jobs) ─────────────────────────────
+    ScheduleModule.forRoot(),
+
+    // ─── Health checks ─────────────────────────────────────
+    TerminusModule,
+
+    // ─── Structured logging ────────────────────────────────
+    LoggerModule.forRoot({
+      pinoHttp: {
+        level:
+          process.env.LOG_LEVEL ??
+          (process.env.NODE_ENV === 'production' ? 'warn' : 'debug'),
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? {
+                target: 'pino-pretty',
+                options: { singleLine: true, colorize: true },
+              }
+            : undefined,
+        genReqId: (req) =>
+          (req.headers['x-request-id'] as string) ?? crypto.randomUUID(),
+        serializers: {
+          req: (req) => ({ method: req.method, url: req.url, id: req.id }),
+          res: (res) => ({ statusCode: res.statusCode }),
+        },
+        redact: ['req.headers.authorization'],
+      },
+    }),
+
+    // ─── Rate Limiting (Redis-backed — counters survive restarts and are shared
+    //     across all Railway instances; fails open when Redis is unavailable) ──
+    ThrottlerModule.forRootAsync({
+      imports: [ThrottlerRedisModule],
+      inject: [RedisThrottlerStorage],
+      useFactory: (storage: RedisThrottlerStorage) => ({
+        throttlers: [
+          {
+            name: 'default',
+            ttl: 60000, // 1 minute window
+            limit: 60, // 60 requests per minute (general)
+          },
+        ],
+        storage,
+      }),
+    }),
+
+    // ─── Application Cache (global — uses the same Redis URL) ─
+    CacheModule,
+
+    // ─── Feature Modules ───────────────────────────────────
+    AuthModule,
+    EventsModule,
+    TicketsModule,
+    NotificationsModule,
+    PrismaModule,
+    SchoolsModule,
+    UsersModule,
+    CardsModule,
+    AdminModule,
+    PostsModule,
+    ClassesModule,
+    SegmentsModule,
+    CampaignsModule,
+    ScannerModule,
+    WalletModule,
+    GatewayModule,
+    UploadModule,
+    VouchersModule,
+    EmailsModule,
+    DeepLinkModule,
+    SchedulerModule,
+    AdminPanelModule,
+    NotificationTriggersModule,
+  ],
+  controllers: [AppController],
+  providers: [
+    // Global rate limiter (applied unless @SkipThrottle())
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Global JWT guard — all routes require auth unless marked @Public()
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
+})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(BullBoardAuthMiddleware).forRoutes('admin/queues');
+  }
+}

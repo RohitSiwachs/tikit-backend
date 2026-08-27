@@ -1,0 +1,52 @@
+﻿# Dependencies
+node_modules
+
+# Build outputs
+/.cache
+/build
+/dist
+/public/build
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+scratch/ 
+
+# IDE and editors
+/.idea
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Deploy / hosting
+/functions
+/.netlify
+/.wrangler
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Optional: lock file (uncomment if you want to ignore; project uses yarn)
+# package-lock.json
+.vercel
+.env*.local
+
+/generated/prisma
+
+# Prisma local dev database
+prisma/*.db
+prisma/*.db-journal
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+

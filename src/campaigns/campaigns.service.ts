@@ -1,0 +1,374 @@
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { PrismaService } from '../prisma/prisma.service';
+import { EmailsService } from '../emails/emails.service';
+import { CommunicationUsageService } from '../communication/communication-usage.service';
+import { CreateCampaignDto, UpdateCampaignDto } from './dto/campaign.dto';
+import { CAMPAIGNS_QUEUE, SEND_CAMPAIGN_JOB } from './campaigns.constants';
+
+// Campaign status state machine:
+// draft → processing → sent
+// draft → scheduled → processing → sent
+// processing → failed (on unhandled error)
+type CampaignStatus = 'draft' | 'scheduled' | 'processing' | 'sent' | 'failed';
+type Channel = 'push' | 'email' | 'sms';
+
+const BATCH_SIZE = 100;
+
+// Lazily loaded ESM module — expo-server-sdk v6+ is ESM-only
+let _expoModule: typeof import('expo-server-sdk') | null = null;
+async function getExpoModule() {
+  if (!_expoModule) {
+    _expoModule = await import('expo-server-sdk');
+  }
+  return _expoModule;
+}
+
+@Injectable()
+export class CampaignsService {
+  private readonly logger = new Logger(CampaignsService.name);
+  private expo: InstanceType<
+    (typeof import('expo-server-sdk'))['Expo']
+  > | null = null;
+
+  private async getExpo() {
+    if (!this.expo) {
+      const { Expo } = await getExpoModule();
+      this.expo = new Expo({
+        accessToken: process.env.EXPO_ACCESS_TOKEN || undefined,
+      });
+    }
+    return this.expo;
+  }
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailsService: EmailsService,
+    private readonly communicationUsageService: CommunicationUsageService,
+    @InjectQueue(CAMPAIGNS_QUEUE) private readonly campaignsQueue: Queue,
+  ) {}
+
+  create(dto: CreateCampaignDto, requestingUser?: any) {
+    const data: any = { ...dto };
+    if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
+
+    // School admin: force segmentFilters.schoolId to their own school
+    if (requestingUser?.role === 'SCHOOL_ADMIN') {
+      if (!requestingUser.schoolId) {
+        throw new ForbiddenException('School admin must belong to a school');
+      }
+      const existingFilters = (data.segmentFilters as any) ?? {};
+      if (
+        existingFilters.schoolId &&
+        existingFilters.schoolId !== requestingUser.schoolId
+      ) {
+        throw new ForbiddenException(
+          'You can only create campaigns targeting your own school',
+        );
+      }
+      data.segmentFilters = {
+        ...existingFilters,
+        schoolId: requestingUser.schoolId,
+      };
+    }
+
+    return this.prisma.campaign.create({ data });
+  }
+
+  findAll() {
+    return this.prisma.campaign.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async findOne(id: string) {
+    const campaign = await this.prisma.campaign.findUnique({ where: { id } });
+    if (!campaign) throw new NotFoundException(`Campaign ${id} not found`);
+    return campaign;
+  }
+
+  update(id: string, dto: UpdateCampaignDto) {
+    const data: any = { ...dto };
+    if (data.scheduledAt) data.scheduledAt = new Date(data.scheduledAt);
+    return this.prisma.campaign.update({ where: { id }, data });
+  }
+
+  remove(id: string) {
+    return this.prisma.campaign.delete({ where: { id } });
+  }
+
+  async triggerSend(
+    id: string,
+    requestingUser?: any,
+  ): Promise<{ message: string; campaignId: string }> {
+    const campaign = await this.findOne(id);
+
+    // School admin can only send campaigns scoped to their own school
+    if (requestingUser?.role === 'SCHOOL_ADMIN') {
+      if (!requestingUser.schoolId) {
+        throw new ForbiddenException('School admin must belong to a school');
+      }
+      const campaignSchoolId = (campaign.segmentFilters as any)?.schoolId;
+      if (campaignSchoolId && campaignSchoolId !== requestingUser.schoolId) {
+        throw new ForbiddenException(
+          'You can only send campaigns targeting your own school',
+        );
+      }
+    }
+
+    if (campaign.status === 'sent') {
+      throw new BadRequestException('Campaign has already been sent');
+    }
+    if (campaign.status === 'processing') {
+      throw new BadRequestException('Campaign send is already in progress');
+    }
+
+    // Quota check — throws 409 if school has no remaining quota for this channel
+    const schoolId = (campaign.segmentFilters as any)?.schoolId as
+      string | undefined;
+    if (schoolId && ['push', 'email', 'sms'].includes(campaign.channel)) {
+      await this.communicationUsageService.checkQuota(
+        schoolId,
+        campaign.channel as Channel,
+      );
+    }
+
+    // Atomic lock: only transitions from draft or scheduled → processing.
+    // If two callers race here, only one gets count=1.
+    const locked = await this.prisma.campaign.updateMany({
+      where: { id, status: { in: ['draft', 'scheduled'] } },
+      data: { status: 'processing' as CampaignStatus },
+    });
+
+    if (locked.count === 0) {
+      throw new BadRequestException('Campaign could not be locked for sending');
+    }
+
+    await this.campaignsQueue.add(
+      SEND_CAMPAIGN_JOB,
+      { campaignId: id },
+      {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+        removeOnComplete: 50,
+        removeOnFail: 200,
+      },
+    );
+
+    this.logger.log(`Campaign ${id} queued for background send`);
+    return { message: 'Campaign send started', campaignId: id };
+  }
+
+  // Builds a Prisma `where` clause from stored segmentFilters + channel enforcement.
+  // All conditions are combined with AND. Channel opt-in is mandatory and applied last.
+  private buildUserWhere(filters: Record<string, any>, channel: string): any {
+    const where: any = { deletedAt: null };
+    const andConditions: any[] = [];
+
+    // ── Scalar field filters ─────────────────────────────────────────────────
+    if (filters.schoolId) where.schoolId = filters.schoolId;
+    if (filters.className) where.className = filters.className;
+    if (filters.gender) where.gender = filters.gender;
+    if (filters.role) where.role = filters.role;
+
+    // ── Consent flags ────────────────────────────────────────────────────────
+    if (filters.marketingOptIn !== undefined)
+      where.marketingConsent = filters.marketingOptIn;
+    if (filters.partnerOptIn !== undefined)
+      where.partnerConsent = filters.partnerOptIn;
+
+    // ── Notification channel opt-in from segment filters ─────────────────────
+    // Applied before channel enforcement; channel enforcement below always wins.
+    if (filters.pushEnabled !== undefined)
+      where.notifPush = filters.pushEnabled;
+    if (filters.emailEnabled !== undefined)
+      where.notifEmail = filters.emailEnabled;
+    if (filters.smsEnabled !== undefined) where.notifSms = filters.smsEnabled;
+
+    // ── Age range ─────────────────────────────────────────────────────────────
+    if (filters.minAge !== undefined || filters.maxAge !== undefined) {
+      where.age = {};
+      if (filters.minAge !== undefined) where.age.gte = filters.minAge;
+      if (filters.maxAge !== undefined) where.age.lte = filters.maxAge;
+    }
+
+    // ── Relation filters (collected into AND to avoid key collisions) ─────────
+    if (filters.goingEventId) {
+      andConditions.push({
+        tickets: { some: { eventId: filters.goingEventId } },
+      });
+    }
+    if (filters.cardId) {
+      andConditions.push({ cardCodes: { some: { cardId: filters.cardId } } });
+    }
+    if (filters.fetchedTicketEventId) {
+      andConditions.push({
+        tickets: {
+          some: { eventId: filters.fetchedTicketEventId, status: 'ISSUED' },
+        },
+      });
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
+    }
+
+    // ── Channel opt-in enforcement — mandatory, applied last ──────────────────
+    if (channel === 'push') where.notifPush = true;
+    if (channel === 'sms') where.notifSms = true;
+    if (channel === 'email') where.notifEmail = true;
+
+    return where;
+  }
+
+  // Called by triggerSend (via setImmediate) and by the scheduler.
+  // Processes users in cursor-based batches to avoid loading all users into heap at once.
+  async runSend(id: string): Promise<void> {
+    const campaign = await this.findOne(id);
+    const filters: any = (campaign.segmentFilters as any) ?? {};
+
+    const baseWhere = this.buildUserWhere(filters, campaign.channel);
+
+    let cursor: string | undefined;
+    let totalSent = 0;
+
+    try {
+      while (true) {
+        const batch = await this.prisma.user.findMany({
+          where: baseWhere,
+          take: BATCH_SIZE,
+          ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+          orderBy: { id: 'asc' },
+          select: { id: true, phone: true, email: true, expoPushToken: true },
+        });
+
+        if (batch.length === 0) break;
+
+        cursor = batch[batch.length - 1].id;
+        totalSent += await this.sendBatch(campaign, batch);
+
+        // Yield to the event loop between batches so HTTP handlers aren't starved
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
+
+      await this.prisma.campaign.update({
+        where: { id },
+        data: { status: 'sent' as CampaignStatus, sentCount: totalSent },
+      });
+
+      // Increment usage only on full success — do NOT track if campaign failed
+      const schoolId = filters.schoolId as string | undefined;
+      if (
+        schoolId &&
+        totalSent > 0 &&
+        ['push', 'email', 'sms'].includes(campaign.channel)
+      ) {
+        const channel = campaign.channel as Channel;
+        if (channel === 'push')
+          await this.communicationUsageService.incrementPushUsage(
+            schoolId,
+            totalSent,
+          );
+        else if (channel === 'email')
+          await this.communicationUsageService.incrementEmailUsage(
+            schoolId,
+            totalSent,
+          );
+        else if (channel === 'sms')
+          await this.communicationUsageService.incrementSmsUsage(
+            schoolId,
+            totalSent,
+          );
+      }
+
+      this.logger.log(`Campaign ${id} sent to ${totalSent} recipients`);
+    } catch (err) {
+      this.logger.error(
+        `Campaign ${id} failed after ${totalSent} sends`,
+        err.stack,
+      );
+      // Best-effort status update — don't throw, the scheduler will see 'failed' and not retry
+      await this.prisma.campaign
+        .update({
+          where: { id },
+          data: { status: 'failed' as CampaignStatus },
+        })
+        .catch(() => {});
+    }
+  }
+
+  private async sendBatch(campaign: any, batch: any[]): Promise<number> {
+    let sent = 0;
+
+    if (campaign.channel === 'push') {
+      const { Expo } = await getExpoModule();
+      const expo = await this.getExpo();
+      const messages = batch
+        .filter((u) => u.expoPushToken && Expo.isExpoPushToken(u.expoPushToken))
+        .map((u) => ({
+          to: u.expoPushToken,
+          sound: 'default' as const,
+          title: campaign.title,
+          body: campaign.body,
+          data: { campaignId: campaign.id },
+        }));
+
+      if (messages.length > 0) {
+        const chunks = expo.chunkPushNotifications(messages);
+        for (const chunk of chunks) {
+          try {
+            const results = await expo.sendPushNotificationsAsync(chunk);
+            sent += results.filter((r) => r.status === 'ok').length;
+          } catch (err) {
+            this.logger.error('Push chunk failed', err.message);
+          }
+        }
+      }
+    } else if (campaign.channel === 'sms') {
+      this.logger.warn(
+        `Campaign ${campaign.id}: SMS channel is not supported — skipping batch`,
+      );
+    } else if (campaign.channel === 'email') {
+      for (const user of batch) {
+        if (!user.email) continue;
+        try {
+          const result = await this.emailsService.sendCampaignEmail(
+            user.email,
+            campaign.title,
+            campaign.body,
+          );
+          if (result.success) sent++;
+        } catch (err) {
+          this.logger.warn(`Email to user ${user.id} failed: ${err.message}`);
+        }
+      }
+    }
+
+    return sent;
+  }
+
+  async getReport(id: string) {
+    const campaign = await this.findOne(id);
+    const openRate =
+      campaign.sentCount > 0
+        ? (campaign.openCount / campaign.sentCount) * 100
+        : 0;
+
+    return {
+      campaignId: campaign.id,
+      title: campaign.title,
+      channel: campaign.channel,
+      status: campaign.status,
+      sentCount: campaign.sentCount,
+      openCount: campaign.openCount,
+      openRate: openRate.toFixed(2) + '%',
+      scheduledAt: campaign.scheduledAt,
+      createdAt: campaign.createdAt,
+    };
+  }
+}
