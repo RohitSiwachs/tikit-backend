@@ -13,6 +13,11 @@ import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { EventType } from '../../prisma-enums';
 
 export class CreateTicketTypeDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  id?: string;
+
   @ApiProperty()
   @IsString()
   name: string;
@@ -60,6 +65,39 @@ export class CreateTicketTypeDto {
   @IsOptional()
   @IsString()
   deepLink?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  salesStartsAt?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsDateString()
+  salesEndsAt?: string;
+
+  @ApiProperty({ required: false, default: true })
+  @IsOptional()
+  @IsBoolean()
+  trackQuantity?: boolean;
+
+  @ApiProperty({
+    required: false,
+    enum: ['available', 'fewLeft', 'soldOut'],
+    default: 'available',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiProperty({
+    required: false,
+    enum: ['mostPopular', 'fewLeft', 'sellingFast'],
+    nullable: true,
+  })
+  @IsOptional()
+  @IsString()
+  label?: string | null;
 }
 
 export class CreateEventDto {
@@ -94,6 +132,21 @@ export class CreateEventDto {
   @IsOptional()
   @IsString()
   venueAddress?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  placeId?: string;
 
   @ApiProperty()
   @IsDateString()
@@ -192,7 +245,7 @@ export class UpdateEventDto extends PartialType(CreateEventDto) {
   isCancelled?: boolean;
 }
 
-export class UpdateTicketTypeDto {
+export class UpdateTicketTypeDto extends PartialType(CreateTicketTypeDto) {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsBoolean()

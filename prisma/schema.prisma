@@ -178,6 +178,9 @@ model Event {
   school               School    @relation(fields: [schoolId], references: [id])
   venueName            String?
   venueAddress         String?
+  latitude             Float?
+  longitude            Float?
+  placeId              String?
   startsAt             DateTime
   endsAt               DateTime
   ageLimit             Int?
@@ -243,6 +246,11 @@ model TicketType {
   sortOrder    Int       @default(1)
   priceDisplay String    @default("Free")
   deepLink     String?
+  salesStartsAt DateTime?
+  salesEndsAt   DateTime?
+  trackQuantity Boolean   @default(true)
+  status        String    @default("available")
+  label         String?
   tickets      Ticket[]
   vouchers     Voucher[]
 

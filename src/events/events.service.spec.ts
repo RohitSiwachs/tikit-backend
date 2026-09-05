@@ -23,7 +23,13 @@ function buildMockPrisma(overrides: Record<string, any> = {}) {
       delete: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
     },
-    ticketType: { create: jest.fn(), update: jest.fn(), delete: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
+    ticketType: {
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+      findUnique: jest.fn(),
+    },
     ticket: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0), findFirst: jest.fn().mockResolvedValue(null) },
     eventLike: { create: jest.fn(), delete: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
     eventComment: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -212,6 +218,224 @@ describe('EventsService', () => {
 
       await expect(svc.findOne('event-1', 'student-1')).rejects.toThrow(
         ForbiddenException,
+      );
+    });
+  });
+
+  // ── Event & TicketType Fields (Create / Update / Nested TicketTypes) ────────
+  describe('Event and TicketType field handling', () => {
+    it('create should persist latitude, longitude, placeId and ticketType sales dates, trackQuantity, status, label', async () => {
+      const mockPrisma = buildMockPrisma();
+      mockPrisma.event.create.mockImplementation((args) => Promise.resolve({ id: 'evt-created', ...args.data }));
+
+      const module = await Test.createTestingModule({
+        providers: [
+          EventsService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: CacheService, useValue: mockCache },
+        ],
+      }).compile();
+
+      const svc = module.get<EventsService>(EventsService);
+
+      const createDto: any = {
+        title: 'Festival 2026',
+        eventType: 'EXTERNAL',
+        schoolId: 'school-1',
+        venueName: 'Arena',
+        venueAddress: '123 Main St',
+        latitude: 59.3293,
+        longitude: 18.0686,
+        placeId: 'place-abc-123',
+        startsAt: '2026-10-01T18:00:00.000Z',
+        endsAt: '2026-10-01T23:00:00.000Z',
+        ticketTypes: [
+          {
+            name: 'Early Bird',
+            price: 150,
+            quantityTotal: 100,
+            salesStartsAt: '2026-09-01T00:00:00.000Z',
+            salesEndsAt: '2026-09-20T23:59:59.000Z',
+            trackQuantity: true,
+            status: 'available',
+            label: 'sellingFast',
+          },
+        ],
+      };
+
+      await svc.create(createDto, 'school-1');
+
+      expect(mockPrisma.event.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            latitude: 59.3293,
+            longitude: 18.0686,
+            placeId: 'place-abc-123',
+            ticketTypes: {
+              create: [
+                expect.objectContaining({
+                  name: 'Early Bird',
+                  price: 150,
+                  quantityTotal: 100,
+                  quantityRemaining: 100,
+                  salesStartsAt: new Date('2026-09-01T00:00:00.000Z'),
+                  salesEndsAt: new Date('2026-09-20T23:59:59.000Z'),
+                  trackQuantity: true,
+                  status: 'available',
+                  label: 'sellingFast',
+                }),
+              ],
+            },
+          }),
+          include: expect.objectContaining({
+            ticketTypes: true,
+          }),
+        }),
+      );
+    });
+
+    it('update should update event fields and sync nested ticketTypes', async () => {
+      const mockPrisma = buildMockPrisma();
+      mockPrisma.event.findUnique.mockResolvedValue({ id: 'event-1', schoolId: 'school-1', eventType: 'EXTERNAL' });
+      mockPrisma.ticketType.findMany.mockResolvedValue([
+        {
+          id: 'tt-1',
+          name: 'Old Ticket',
+          quantityTotal: 50,
+          quantityRemaining: 40,
+          connectionStateId: null,
+          _count: { tickets: 10, vouchers: 0 },
+        },
+      ]);
+      mockPrisma.ticketType.update.mockResolvedValue({ id: 'tt-1' });
+      mockPrisma.ticketType.create.mockResolvedValue({ id: 'tt-2' });
+      mockPrisma.event.update.mockResolvedValue({ id: 'event-1' });
+
+      const module = await Test.createTestingModule({
+        providers: [
+          EventsService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: CacheService, useValue: mockCache },
+        ],
+      }).compile();
+
+      const svc = module.get<EventsService>(EventsService);
+
+      await svc.update(
+        'event-1',
+        {
+          latitude: 57.7089,
+          longitude: 11.9746,
+          placeId: 'place-gothenburg',
+          ticketTypes: [
+            {
+              id: 'tt-1',
+              name: 'Updated Ticket',
+              quantityTotal: 80,
+              salesStartsAt: '2026-09-10T00:00:00.000Z',
+              trackQuantity: false,
+              status: 'fewLeft',
+              label: 'mostPopular',
+            },
+            {
+              name: 'New VIP Ticket',
+              quantityTotal: 20,
+              price: 300,
+              status: 'available',
+            },
+          ],
+        },
+        'school-1',
+      );
+
+      // Verify existing ticket type updated with recalculation of remaining
+      expect(mockPrisma.ticketType.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'tt-1' },
+          data: expect.objectContaining({
+            name: 'Updated Ticket',
+            quantityTotal: 80,
+            quantityRemaining: 70, // 80 - (50 - 40)
+            salesStartsAt: new Date('2026-09-10T00:00:00.000Z'),
+            trackQuantity: false,
+            status: 'fewLeft',
+            label: 'mostPopular',
+          }),
+        }),
+      );
+
+      // Verify new ticket type created
+      expect(mockPrisma.ticketType.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'New VIP Ticket',
+            quantityTotal: 20,
+            quantityRemaining: 20,
+            price: 300,
+            status: 'available',
+          }),
+        }),
+      );
+
+      // Verify event updated with coordinates and placeId
+      expect(mockPrisma.event.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'event-1' },
+          data: expect.objectContaining({
+            latitude: 57.7089,
+            longitude: 11.9746,
+            placeId: 'place-gothenburg',
+          }),
+          include: expect.objectContaining({
+            ticketTypes: true,
+          }),
+        }),
+      );
+    });
+
+    it('updateTicketType should parse sales dates and update TicketType', async () => {
+      const mockPrisma = buildMockPrisma();
+      mockPrisma.ticketType.findUnique.mockResolvedValue({
+        id: 'tt-1',
+        eventId: 'event-1',
+        event: { eventType: 'EXTERNAL' },
+      });
+      mockPrisma.event.findUnique.mockResolvedValue({ id: 'event-1', schoolId: 'school-1' });
+      mockPrisma.ticketType.update.mockResolvedValue({ id: 'tt-1' });
+
+      const module = await Test.createTestingModule({
+        providers: [
+          EventsService,
+          { provide: PrismaService, useValue: mockPrisma },
+          { provide: CacheService, useValue: mockCache },
+        ],
+      }).compile();
+
+      const svc = module.get<EventsService>(EventsService);
+
+      await svc.updateTicketType(
+        'tt-1',
+        {
+          salesStartsAt: '2026-09-01T10:00:00.000Z',
+          salesEndsAt: '2026-09-15T18:00:00.000Z',
+          status: 'fewLeft',
+          label: 'sellingFast',
+          trackQuantity: true,
+        },
+        'school-1',
+      );
+
+      expect(mockPrisma.ticketType.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'tt-1' },
+          data: expect.objectContaining({
+            salesStartsAt: new Date('2026-09-01T10:00:00.000Z'),
+            salesEndsAt: new Date('2026-09-15T18:00:00.000Z'),
+            status: 'fewLeft',
+            label: 'sellingFast',
+            trackQuantity: true,
+          }),
+        }),
       );
     });
   });

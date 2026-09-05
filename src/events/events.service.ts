@@ -20,6 +20,32 @@ import { CacheService } from '../cache/cache.service';
 import { CK, TTL } from '../cache/cache-keys';
 import { generateFormattedCode } from '../common/utils/code-generator';
 
+function normalizeTicketTypeData(tt: CreateTicketTypeDto, eventType: string) {
+  const {
+    id: _ttId,
+    salesStartsAt,
+    salesEndsAt,
+    trackQuantity,
+    status,
+    label,
+    ...rest
+  } = tt;
+  return {
+    ...rest,
+    price: eventType === 'INTERNAL' ? 0 : (tt.price ?? 0),
+    priceDisplay:
+      eventType === 'INTERNAL'
+        ? 'Free'
+        : (tt.priceDisplay ??
+          (tt.price === 0 || !tt.price ? 'Free' : `${tt.price} kr`)),
+    salesStartsAt: salesStartsAt ? new Date(salesStartsAt) : null,
+    salesEndsAt: salesEndsAt ? new Date(salesEndsAt) : null,
+    trackQuantity: trackQuantity ?? true,
+    status: status ?? 'available',
+    label: label ?? null,
+  };
+}
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -56,13 +82,6 @@ export class EventsService {
       }
     }
 
-    // Internal events: all ticket types are always free
-    const normalizedTicketTypes = ticketTypes.map((tt) =>
-      dto.eventType === 'INTERNAL'
-        ? { ...tt, price: 0, priceDisplay: 'Free' }
-        : { ...tt, price: tt.price ?? 0 },
-    );
-
     // Validate cards if provided
     if (dto.linkedCardIds?.length) {
       const validCardsCount = await this.prisma.card.count({
@@ -89,10 +108,13 @@ export class EventsService {
           ? { create: connectedSchools.map((id) => ({ schoolId: id })) }
           : undefined,
         ticketTypes: {
-          create: normalizedTicketTypes.map((tt) => ({
-            ...tt,
-            quantityRemaining: tt.quantityTotal,
-          })),
+          create: ticketTypes.map((tt) => {
+            const normalized = normalizeTicketTypeData(tt, dto.eventType);
+            return {
+              ...normalized,
+              quantityRemaining: tt.quantityTotal,
+            };
+          }),
         },
       },
       include: {
@@ -198,6 +220,7 @@ export class EventsService {
         take: limit,
         include: {
           school: { select: { name: true } },
+          ticketTypes: true,
           connectionStates: true,
           _count: { select: { tickets: true } },
         },
@@ -473,10 +496,76 @@ export class EventsService {
       };
     }
 
+    // Determine effective eventType for ticket types normalization
+    const currentEvent = await this.prisma.event.findUnique({
+      where: { id },
+      select: { eventType: true },
+    });
+    const effectiveEventType =
+      data.eventType ?? currentEvent?.eventType ?? 'INTERNAL';
+
+    // Handle nested ticketTypes update if provided
+    if (ticketTypes !== undefined && Array.isArray(ticketTypes)) {
+      const existingTicketTypes = await this.prisma.ticketType.findMany({
+        where: { eventId: id, connectionStateId: null },
+        include: { _count: { select: { tickets: true, vouchers: true } } },
+      });
+      const incomingIds = ticketTypes
+        .map((tt) => tt.id)
+        .filter((ttId): ttId is string => Boolean(ttId));
+
+      for (const tt of ticketTypes) {
+        const normalized = normalizeTicketTypeData(tt, effectiveEventType);
+        if (tt.id && existingTicketTypes.some((e) => e.id === tt.id)) {
+          const existing = existingTicketTypes.find((e) => e.id === tt.id)!;
+          let quantityRemaining = existing.quantityRemaining;
+          if (
+            tt.quantityTotal !== undefined &&
+            tt.quantityTotal !== existing.quantityTotal
+          ) {
+            const soldCount =
+              existing.quantityTotal - existing.quantityRemaining;
+            quantityRemaining = Math.max(0, tt.quantityTotal - soldCount);
+          }
+          await this.prisma.ticketType.update({
+            where: { id: tt.id },
+            data: {
+              ...normalized,
+              quantityRemaining,
+            },
+          });
+        } else {
+          await this.prisma.ticketType.create({
+            data: {
+              ...normalized,
+              eventId: id,
+              quantityRemaining: tt.quantityTotal,
+            },
+          });
+        }
+      }
+
+      // Remove / soft-retire host ticket types omitted in payload
+      const toRemove = existingTicketTypes.filter(
+        (e) => !incomingIds.includes(e.id),
+      );
+      for (const oldTt of toRemove) {
+        if (oldTt._count.tickets === 0 && oldTt._count.vouchers === 0) {
+          await this.prisma.ticketType.delete({ where: { id: oldTt.id } });
+        } else {
+          await this.prisma.ticketType.update({
+            where: { id: oldTt.id },
+            data: { isSoldOut: true, status: 'soldOut', quantityRemaining: 0 },
+          });
+        }
+      }
+    }
+
     const event = await this.prisma.event.update({
       where: { id },
       data,
       include: {
+        ticketTypes: true,
         connectedSchools: true,
       },
     });
@@ -758,15 +847,11 @@ export class EventsService {
     });
     if (!event) throw new NotFoundException(`Event ${eventId} not found`);
 
-    // Internal events: price is always 0 regardless of what the caller sends
-    const data =
-      event.eventType === 'INTERNAL'
-        ? { ...dto, price: 0, priceDisplay: 'Free' }
-        : { ...dto, price: dto.price ?? 0 };
+    const normalized = normalizeTicketTypeData(dto, event.eventType);
 
     const ticketType = await this.prisma.ticketType.create({
       data: {
-        ...data,
+        ...normalized,
         eventId,
         quantityRemaining: dto.quantityTotal,
       },
@@ -789,15 +874,30 @@ export class EventsService {
     if (tt)
       await this.assertSchoolOwnership(tt.eventId, requestingSchoolId ?? null);
 
-    // Internal events: freeForHostSchool must always remain true
-    const data =
-      tt?.event.eventType === 'INTERNAL'
-        ? { ...dto, freeForHostSchool: true }
-        : dto;
+    const { id: _ignoredId, salesStartsAt, salesEndsAt, ...rest } = dto;
+    const updatePayload: any = { ...rest };
+
+    if (salesStartsAt !== undefined) {
+      updatePayload.salesStartsAt = salesStartsAt
+        ? new Date(salesStartsAt)
+        : null;
+    }
+    if (salesEndsAt !== undefined) {
+      updatePayload.salesEndsAt = salesEndsAt ? new Date(salesEndsAt) : null;
+    }
+
+    // Internal events: freeForHostSchool must always remain true and price 0
+    if (tt?.event.eventType === 'INTERNAL') {
+      updatePayload.freeForHostSchool = true;
+      if (updatePayload.price !== undefined) {
+        updatePayload.price = 0;
+        updatePayload.priceDisplay = 'Free';
+      }
+    }
 
     const result = await this.prisma.ticketType.update({
       where: { id: ticketTypeId },
-      data,
+      data: updatePayload,
     });
 
     if (tt) await this.invalidateEventCaches(tt.eventId);
