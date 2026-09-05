@@ -89,6 +89,9 @@ importers:
       expo-server-sdk:
         specifier: ^6.1.0
         version: 6.1.0
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1(supports-color@8.1.1)
       express-session:
         specifier: ^1.19.0
         version: 1.19.0(supports-color@8.1.1)
